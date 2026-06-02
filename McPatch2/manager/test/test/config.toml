@@ -2,14 +2,11 @@
 exclude-rules = []
 webui-mode = false
 
-[core.mod-platform]
-
 [core.mod-platform.curseforge]
 api-key = "$2a$10$ENS1BEMMfnrN1.UOBeyf9O.zMOCIUNrRID.QuZoOxgVwef47MsCeq"
 rate-limit = 5
 
 [core.mod-platform.modrinth]
-api-token = ""
 rate-limit = 30
 
 [core.mod-platform.cache]

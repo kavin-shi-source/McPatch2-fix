@@ -76,19 +76,13 @@ impl<'a, R: AsyncRead + Unpin> AsyncRead for AsyncTrafficControl<'a, R> {
             // 计算本次能消耗掉的令牌数
             let consumption = self.bucket.min(buf.remaining() as u64);
             
-            // println!("bucket: {} | com: {}", self.bucket, consumption);
-
             match consumption > 0 {
                 true => consumption,
                 false => {
-                    // println!("set");
-
                     // 如果令牌用完了，就需要等100毫秒再唤醒，好等待新的令牌过来
                     let waker = cx.waker().clone();
                     TASK_WAKER_RUNTIME.spawn(async move {
-                        // println!("a");
                         tokio::time::sleep(Duration::from_millis(100)).await;
-                        // println!("b");
                         waker.wake();
                     });
 
@@ -96,8 +90,6 @@ impl<'a, R: AsyncRead + Unpin> AsyncRead for AsyncTrafficControl<'a, R> {
                 },
             }
         };
-
-        // println!("+ bucket: {}, consumption: {}", self.bucket, consumption);
 
         // 按consumption取出一小部分缓冲区
         let mut new_buf = buf.take(consumption as usize);

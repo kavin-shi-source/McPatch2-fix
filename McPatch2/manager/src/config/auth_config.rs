@@ -2,12 +2,16 @@ use std::ops::Deref;
 use std::sync::Arc;
 use std::time::SystemTime;
 
+use argon2::password_hash::rand_core::OsRng;
+use argon2::password_hash::SaltString;
+use argon2::Argon2;
+use argon2::PasswordHash;
+use argon2::PasswordHasher;
+use argon2::PasswordVerifier;
 use rand::seq::SliceRandom;
 use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
-use sha2::Digest;
-use sha2::Sha256;
 use tokio::sync::Mutex;
 
 use crate::app_path::AppPath;
@@ -20,14 +24,14 @@ pub struct AuthConfig {
 }
 
 impl AuthConfig {
-    pub async fn load(app_path: AppPath) -> (Self, Option<String>) {
-        let exist = tokio::fs::try_exists(&app_path.auth_file).await.unwrap();
+    pub async fn load(app_path: AppPath) -> Result<(Self, Option<String>), Box<dyn std::error::Error>> {
+        let exist = tokio::fs::try_exists(&app_path.auth_file).await?;
 
         if exist {
-            let content = std::fs::read_to_string(&app_path.auth_file).unwrap();
-            let data = toml::from_str::<Inner>(&content).unwrap();
+            let content = std::fs::read_to_string(&app_path.auth_file)?;
+            let data = toml::from_str::<Inner>(&content)?;
 
-            return (Self { app_path, inner: Arc::new(Mutex::new(data)) }, None);
+            return Ok((Self { app_path, inner: Arc::new(Mutex::new(data)) }, None));
         }
 
         let password = random_password();
@@ -36,9 +40,9 @@ impl AuthConfig {
 
         let this = Self { app_path, inner: Arc::new(Mutex::new(inner)) };
 
-        this.save().await;
+        this.save().await?;
 
-        return (this, Some(password));
+        return Ok((this, Some(password)));
     }
 
     pub async fn set_username(&mut self, username: &str) {
@@ -62,7 +66,7 @@ impl AuthConfig {
     pub async fn test_password(&self, password: &str) -> bool {
         let lock = self.inner.lock().await;
 
-        lock.password == hash(password)
+        verify(password, &lock.password)
     }
 
     pub async fn regen_token(&mut self) -> String {
@@ -70,7 +74,7 @@ impl AuthConfig {
 
         let mut lock = self.inner.lock().await;
         
-        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs();
 
         // 有效期6个小时
         lock.expire = now + 6 * 60 * 60;
@@ -92,7 +96,7 @@ impl AuthConfig {
     pub async fn validate_token(&self, token: &str) -> Result<(), &'static str> {
         let lock = self.inner.lock().await;
 
-        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+        let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs();
 
         // 检查token是否存在
         if lock.token.is_empty() {
@@ -112,12 +116,14 @@ impl AuthConfig {
         Ok(())
     }
 
-    pub async fn save(&self) {
+    pub async fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
         let lock = self.inner.lock().await;
 
-        let content = toml::to_string_pretty(lock.deref()).unwrap();
+        let content = toml::to_string_pretty(lock.deref())?;
 
-        std::fs::write(&self.app_path.auth_file, content).unwrap();
+        std::fs::write(&self.app_path.auth_file, content)?;
+
+        Ok(())
     }
 
     pub async fn username(&self) -> String {
@@ -140,7 +146,7 @@ pub struct Inner {
     /// 用户名
     pub username: String,
 
-    /// 密码的hash，计算方法：sha256(password)
+    /// 密码的hash，计算方法：argon2(password)
     pub password: String,
 
     /// 目前保存的token的hash
@@ -162,9 +168,18 @@ impl Inner {
 }
 
 fn hash(text: &str) -> String {
-    let hash = Sha256::digest(text);
-    
-    base16ct::lower::encode_string(&hash)
+    let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
+    let hash = argon2.hash_password(text.as_bytes(), &salt).unwrap();
+    hash.to_string()
+}
+
+fn verify(text: &str, hash_str: &str) -> bool {
+    let parsed_hash = match PasswordHash::new(hash_str) {
+        Ok(h) => h,
+        Err(_) => return false,
+    };
+    Argon2::default().verify_password(text.as_bytes(), &parsed_hash).is_ok()
 }
 
 /// 生成一串随机的密码

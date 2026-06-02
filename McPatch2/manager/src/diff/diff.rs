@@ -239,7 +239,6 @@ impl<N: AbstractFile, O: AbstractFile> Diff<N, O> {
                 }
             }
 
-            // println!("{}", updated.path().deref());
         }
 
         // 如果有多个同名但不同路径的文件移动，就将它们退回复制操作，而非移动

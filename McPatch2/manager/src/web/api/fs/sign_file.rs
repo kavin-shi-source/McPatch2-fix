@@ -30,7 +30,11 @@ pub async fn api_sign_file(State(state): State<WebState>, Json(payload): Json<Re
         return PublicResponseBody::<ResponseData>::err("parameter 'path' is empty, and it is not allowed.");
     }
 
-    let path = state.apppath.working_dir.join(payload.path);
+    let path = state.apppath.working_dir.join(&payload.path);
+
+    if let Some(resp) = crate::web::api::fs::check_path_traversal(&state.apppath.working_dir, &path) {
+        return resp;
+    }
 
     if !path.exists() || !path.is_file() {
         return PublicResponseBody::<ResponseData>::err("file not exists.");
@@ -47,8 +51,6 @@ pub async fn api_sign_file(State(state): State<WebState>, Json(payload): Json<Re
     let full_data = format!("{}:{}@{}", core_data, username, password);
     let digest = hash(&full_data);
     let signature = format!("{}:{}", core_data, digest);
-
-    // println!("full_data: {} | signature: {}", full_data, signature);
 
     PublicResponseBody::<ResponseData>::ok(ResponseData { signature })
 }

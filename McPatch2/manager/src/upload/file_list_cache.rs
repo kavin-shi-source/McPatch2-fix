@@ -56,14 +56,7 @@ impl<T> FileListCache<T> where T : UploadTarget {
                     let filename = split.next().unwrap().to_owned();
                     let mtime = split.next();
 
-                    let mtime = match mtime {
-                        Some(mt) => u64::from_str_radix(mt, 10).unwrap(),
-                        None => {
-                            println!("114514");
-
-                            123456
-                        },
-                    };
+                    let mtime = mtime.and_then(|mt| u64::from_str_radix(mt, 10).ok()).unwrap_or(123456);
 
                     files.insert(filename, mtime);
                 }

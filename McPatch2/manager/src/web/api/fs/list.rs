@@ -6,6 +6,7 @@ use axum::Json;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::web::api::fs::check_path_traversal;
 use crate::web::api::PublicResponseBody;
 use crate::web::file_status::SingleFileStatus;
 use crate::web::webstate::WebState;
@@ -37,34 +38,36 @@ pub async fn api_list(State(state): State<WebState>, Json(payload): Json<Request
 
     let dir = state.apppath.working_dir.join(&payload.path);
 
-    // println!("list: {:?}", dir);
-
     if !dir.exists() || !dir.is_dir() {
         return PublicResponseBody::<ResponseData>::err("directory not exists.");
     }
 
+    if let Some(resp) = check_path_traversal(&state.apppath.working_dir, &dir) {
+        return resp;
+    }
+
     let mut files = Vec::<File>::new();
 
-    let mut read_dir = tokio::fs::read_dir(&dir).await.unwrap();
+    let mut read_dir = match tokio::fs::read_dir(&dir).await {
+        Ok(rd) => rd,
+        Err(_) => return PublicResponseBody::<ResponseData>::err("failed to read directory"),
+    };
 
-    while let Some(entry) = read_dir.next_entry().await.unwrap() {
-        let is_directory = entry.file_type().await.unwrap().is_dir();
-        let metadata = entry.metadata().await.unwrap();
+    while let Some(entry) = read_dir.next_entry().await.unwrap_or(None) {
+        let is_directory = entry.file_type().await.map(|t| t.is_dir()).unwrap_or(false);
+        let metadata = entry.metadata().await.ok();
 
         let status = match entry.path().strip_prefix(&state.apppath.workspace_dir) {
-            Ok(ok) => status.get_file_status(&ok.to_str().unwrap().replace("\\", "/")).await,
+            Ok(ok) => status.get_file_status(&ok.to_str().unwrap_or("").replace("\\", "/")).await,
             Err(_) => SingleFileStatus::Keep,
         };
 
-        // let relative_path = entry.path().strip_prefix(&state.app_path.working_dir).unwrap().to_str().unwrap().replace("\\", "/");
-        // println!("relative: {:?}", relative_path);
-
         files.push(File {
-            name: entry.file_name().to_str().unwrap().to_string(),
+            name: entry.file_name().to_str().unwrap_or("").to_string(),
             is_directory,
-            size: if is_directory { 0 } else { metadata.len() },
-            ctime: metadata.created().map(|e| e.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs()).unwrap_or(0),
-            mtime: metadata.modified().unwrap().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(),
+            size: if is_directory { 0 } else { metadata.as_ref().map(|m| m.len()).unwrap_or(0) },
+            ctime: metadata.as_ref().and_then(|m| m.created().ok()).map(|e| e.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs()).unwrap_or(0),
+            mtime: metadata.as_ref().and_then(|m| m.modified().ok()).map(|e| e.duration_since(SystemTime::UNIX_EPOCH).unwrap_or_default().as_secs()).unwrap_or(0),
             state: match status {
                 SingleFileStatus::Keep => "keep".to_owned(),
                 SingleFileStatus::Added => "added".to_owned(),

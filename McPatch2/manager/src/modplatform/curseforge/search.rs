@@ -84,7 +84,7 @@ fn urlencoding(s: &str) -> String {
     urlencoding::encode(s).to_string()
 }
 
-fn mod_loader_type(loader: &str) -> String {
+fn mod_loader_type(loader: &str) -> &'static str {
     match loader.to_lowercase().as_str() {
         "forge" => "0",
         "fabric" => "4",

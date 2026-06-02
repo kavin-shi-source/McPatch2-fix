@@ -13,7 +13,7 @@ public class McpatchBusinessException extends Exception {
     }
 
     public McpatchBusinessException(Exception e) {
-        super("好像出现了错误\n" + e.getClass().getSimpleName() + ": " + e.getMessage(), e);
+        super(e.getMessage(), e);
     }
 
     @Override

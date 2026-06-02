@@ -9,7 +9,9 @@ pub async fn api_logout(State(state): State<WebState>) -> Response {
 
     auth.clear_token().await;
 
-    auth.save().await;
+    if let Err(_) = auth.save().await {
+        return PublicResponseBody::<()>::err("failed to save auth data");
+    }
 
     PublicResponseBody::<()>::ok_no_data()
 }

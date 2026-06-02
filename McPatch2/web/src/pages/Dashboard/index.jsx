@@ -52,7 +52,7 @@ const Index = () => {
 
   useEffect(() => {
     checkToken()
-  }, []);
+  }, [user.token, navigate, dispatch]);
 
   const checkToken = async () => {
     if (!user.token) {
@@ -85,7 +85,7 @@ const Index = () => {
           <div className="flex flex-col h-full">
             <div className='h-20 flex justify-center items-center px-8'>
               <div className='flex-none cursor-pointer' onClick={() => navigate('/')}>
-                <div className="text-3xl font-bold text-indigo-600">McPatch</div>
+                <div className="text-[20px] font-bold text-indigo-600 text-left">McPatch(汉堡农场定制)</div>
               </div>
             </div>
             <div className="flex-1 flex flex-col h-full overflow-auto">
@@ -135,7 +135,7 @@ const Index = () => {
                     {/*<img src="" className="w-12 h-12 rounded-full"/>*/}
                     <CircleUserRound className="dark:text-white" size={40} strokeWidth={1.0}/>
                     <div>
-                      <span className="block text-gray-700 dark:text-white text-sm font-semibold">ADMIN</span>
+                      <span className="block text-gray-700 dark:text-white text-sm font-semibold">{user.username || "ADMIN"}</span>
                     </div>
                   </div>
                 </div>

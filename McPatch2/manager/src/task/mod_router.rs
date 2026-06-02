@@ -82,7 +82,7 @@ impl ModRouter {
         let disk_path = file.disk_file();
         let ext = disk_path.extension().and_then(|e| e.to_str()).unwrap_or("");
 
-        match ext.to_lowercase() {
+        match ext.to_lowercase().as_str() {
             "jar" => self.resolve_jar_file(file).await,
             "zip" => self.resolve_zip_file(file).await,
             _ => Ok(None),

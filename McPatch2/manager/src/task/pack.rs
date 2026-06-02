@@ -126,6 +126,7 @@ pub fn task_pack(version_label: String, change_logs: String, apppath: &AppPath, 
     // 4. 模组识别（ModRouter）
     if let Some(router) = crate::task::mod_router::ModRouter::new(config.core.mod_platform.clone()) {
         console.log_info("模组平台识别已启用");
+        let rt = tokio::runtime::Runtime::new().unwrap();
         for f in &vec {
             let path = f.path().to_owned();
             let ext = std::path::Path::new(&path).extension()
@@ -133,13 +134,11 @@ pub fn task_pack(version_label: String, change_logs: String, apppath: &AppPath, 
                 .unwrap_or("")
                 .to_lowercase();
             if ext == "jar" || ext == "zip" {
-                let result = router.resolve_file_source(&path);
-                match result {
-                    Ok(source) => {
-                        if source.download_url.is_some() {
-                            console.log_info(format!("  识别为: {} (来自 {})", source.mod_name.as_deref().unwrap_or("未知"), source.platform.as_ref().map(|p| p.to_string()).unwrap_or_default()));
-                        }
+                match rt.block_on(router.resolve_file_source(f)) {
+                    Ok(Some(source)) => {
+                        console.log_info(format!("  识别为: {} (来自 {})", source.mod_name, source.platform));
                     }
+                    Ok(None) => {}
                     Err(e) => {
                         console.log_debug(format!("  识别失败: {:?}", e));
                     }

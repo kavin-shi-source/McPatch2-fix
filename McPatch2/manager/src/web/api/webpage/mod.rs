@@ -17,20 +17,14 @@ pub async fn api_webpage_index(State(state): State<WebState>) -> Response {
 }
 
 async fn respond_file(mut path: &str, state: &WebState) -> Response {
-    let raw_path = path.to_owned();
-
     if path == "" {
         path = &state.config.web.index_filename;
     }
 
     // 当外部文件夹存在时，优先从外部文件夹响应
     if state.apppath.web_dir.exists() {
-        println!("+webpage-o /{}", raw_path);
-
         return respond_from_outer(path, state).await;
     }
-
-    println!("+webpage-i /{}", raw_path);
 
     // 从文件内部响应
     #[cfg(feature = "bundle-webpage")]
@@ -43,8 +37,6 @@ async fn respond_file(mut path: &str, state: &WebState) -> Response {
 /// 从可执行文件内部响应页面文件请求
 #[cfg(feature = "bundle-webpage")]
 async fn respond_from_inner(mut path: &str, state: &WebState) -> Response {
-    // println!("inner");
-
     // 文件找不到就尝试访问404文件
     if !WEBPAGE_DIR.contains(path) && !state.config.web.redirect_404.is_empty() {
         path = &state.config.web.redirect_404;
@@ -71,8 +63,6 @@ async fn respond_from_inner(mut path: &str, state: &WebState) -> Response {
 
 /// 从外部的webpage目录响应页面文件请求
 async fn respond_from_outer(path: &str, state: &WebState) -> Response {
-    // println!("outer");
-
     let mut path = state.apppath.web_dir.join(path);
 
     // 文件找不到就尝试访问404文件
@@ -101,4 +91,3 @@ async fn respond_from_outer(path: &str, state: &WebState) -> Response {
         .body(Body::from_stream(tokio_util::io::ReaderStream::new(file)))
         .unwrap()
 }
-

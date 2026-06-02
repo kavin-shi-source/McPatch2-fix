@@ -48,8 +48,9 @@ impl ArchiveTester {
                     self.file_locations.remove(path);
                 },
                 FileChange::MoveFile { from, to } => {
-                    let hold = self.file_locations.remove(from).unwrap();
-                    self.file_locations.insert(to.to_owned(), hold);
+                    if let Some(hold) = self.file_locations.remove(from) {
+                        self.file_locations.insert(to.to_owned(), hold);
+                    }
                 }
                 _ => (),
             }
@@ -78,9 +79,18 @@ impl ArchiveTester {
         for (index, up) in vec.iter().enumerate() {
             let path = up.path();
             let path = path.deref();
-            let (archive, offset, len, label) = self.file_locations.get(path).unwrap();
+            let (archive, offset, len, label) = match self.file_locations.get(path) {
+                Some(loc) => loc,
+                None => {
+                    return Err(Failure {
+                        path: path.to_owned(),
+                        label: String::new(),
+                        actual: String::new(),
+                        expected: String::from("file location not found"),
+                    });
+                }
+            };
 
-            // println!("{index}/{total} 正在测试 {label} 的 {path} ({offset}+{len})");
             f(Testing { index, total, label, path, offset: *offset, len: *len });
 
             let mut reader = TarReader::new(&archive);
@@ -98,11 +108,6 @@ impl ArchiveTester {
                 });
             }
 
-            // assert!(
-            //     &actual == expected, 
-            //     "文件哈希不匹配！文件路径: {}, 版本: {} 实际: {}, 预期: {}, 偏移: 0x{offset:x}, 长度: {len}",
-            //     path, label, actual, expected
-            // );
         }
 
         Ok(())

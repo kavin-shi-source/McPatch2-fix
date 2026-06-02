@@ -50,11 +50,18 @@ const Index = ({path, getFileList, items, handlerNextPath}) => {
 
       const {code, msg, data} = await fsSignFileRequest(key);
       if (code === 1) {
-        const link = document.createElement('a');
-        link.href = `${import.meta.env.VITE_API_URL}/fs/extract-file?sign=${data.signature}`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const token = sessionStorage.getItem("token") || localStorage.getItem("token");
+        const response = await fetch(`/api/fs/download?path=${encodeURIComponent(key)}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('下载失败');
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = item.name || 'download';
+        a.click();
+        URL.revokeObjectURL(url);
       } else {
         messageApi.error(msg);
       }

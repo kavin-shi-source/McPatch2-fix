@@ -48,6 +48,11 @@ public class HttpProtocol implements UpdatingServer {
     String baseUrl;
 
     /**
+     * 共享的 HTTP 客户端实例
+     */
+    private static OkHttpClient sharedClient;
+
+    /**
      * HTTP 客户端
      */
     OkHttpClient client;
@@ -62,21 +67,24 @@ public class HttpProtocol implements UpdatingServer {
 
         baseUrl = url.substring(0, url.lastIndexOf("/") + 1);
 
-        // 创建 HTTP 客户端对象
-        OkHttpClient.Builder builder = new OkHttpClient.Builder();
+        client = getSharedClient(config);
+    }
 
-        // 忽略证书
-        if (config.ignoreSSLCertificate) {
-            IgnoreSSLCert ignore = new IgnoreSSLCert();
+    private static synchronized OkHttpClient getSharedClient(AppConfig config) {
+        if (sharedClient == null) {
+            OkHttpClient.Builder builder = new OkHttpClient.Builder()
+                .connectTimeout(config.httpTimeout, TimeUnit.MILLISECONDS)
+                .readTimeout(config.httpTimeout, TimeUnit.MILLISECONDS)
+                .writeTimeout(config.httpTimeout, TimeUnit.MILLISECONDS);
 
-            builder.sslSocketFactory(ignore.context.getSocketFactory(), ignore.trustManager);
+            if (config.ignoreSSLCertificate) {
+                IgnoreSSLCert ignore = new IgnoreSSLCert();
+                builder.sslSocketFactory(ignore.context.getSocketFactory(), ignore.trustManager);
+            }
+
+            sharedClient = builder.build();
         }
-
-        client = builder
-            .connectTimeout(config.httpTimeout, TimeUnit.MILLISECONDS)
-            .readTimeout(config.httpTimeout, TimeUnit.MILLISECONDS)
-            .writeTimeout(config.httpTimeout, TimeUnit.MILLISECONDS)
-            .build();
+        return sharedClient;
     }
 
     @Override
@@ -247,15 +255,25 @@ public class HttpProtocol implements UpdatingServer {
     public static class IgnoreSSLCert {
         public SSLContext context;
         public X509TrustManager trustManager;
+        private static boolean warningLogged = false;
 
         public IgnoreSSLCert() {
             try {
+                if (!warningLogged) {
+                    warningLogged = true;
+                    System.err.println("[WARNING] SSL 证书验证已被禁用！这将使 HTTPS 连接不再验证服务器身份，存在严重安全风险，仅应在测试环境中使用。");
+                }
+
                 context = SSLContext.getInstance("TLS");
 
                 trustManager = new X509TrustManager() {
-                    public void checkClientTrusted(X509Certificate[] paramArrayOfX509Certificate, String paramString) { }
+                    public void checkClientTrusted(X509Certificate[] paramArrayOfX509Certificate, String paramString) {
+                        System.err.println("[WARNING] 客户端证书信任验证被跳过（SSL 验证已禁用）");
+                    }
 
-                    public void checkServerTrusted(X509Certificate[] paramArrayOfX509Certificate, String paramString) { }
+                    public void checkServerTrusted(X509Certificate[] paramArrayOfX509Certificate, String paramString) {
+                        System.err.println("[WARNING] 服务器证书信任验证被跳过（SSL 验证已禁用） - 存在安全风险！");
+                    }
 
                     public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
                 };

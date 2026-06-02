@@ -28,8 +28,8 @@ pub struct AppPath {
 }
 
 impl AppPath {
-    pub fn new() -> Self {
-        let mut working_dir = std::env::current_dir().unwrap();
+    pub fn new() -> std::io::Result<Self> {
+        let mut working_dir = std::env::current_dir()?;
         
         // 在开发模式下，会将工作空间移动到test目录下方便测试
         if is_running_under_cargo() {
@@ -43,10 +43,10 @@ impl AppPath {
         let config_file = working_dir.join("config.toml");
         let auth_file = working_dir.join("user.toml");
 
-        std::fs::create_dir_all(&workspace_dir).unwrap();
-        std::fs::create_dir_all(&public_dir).unwrap();
+        std::fs::create_dir_all(&workspace_dir)?;
+        std::fs::create_dir_all(&public_dir)?;
 
-        Self {
+        Ok(Self {
             working_dir,
             workspace_dir,
             public_dir,
@@ -54,6 +54,6 @@ impl AppPath {
             index_file,
             config_file,
             auth_file,
-        }
+        })
     }
 }

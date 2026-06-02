@@ -38,7 +38,7 @@ impl ModrinthClient {
             api_token,
             base_url: "https://api.modrinth.com/v2".to_string(),
             cache,
-            limiter: Arc::new(limiter),
+            limiter,
         }
     }
 

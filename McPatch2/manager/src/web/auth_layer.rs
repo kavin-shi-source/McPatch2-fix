@@ -56,7 +56,7 @@ impl<S, Req> Service<Request<Req>> for AuthService<S> where
 
     fn call(&mut self, req: Request<Req>) -> Self::Future {
         let uri = req.uri().to_string();
-        println!("url = {:?}", uri);
+        tracing::debug!("url = {:?}", uri);
 
         let webstate = self.webstate.clone();
 

@@ -65,13 +65,26 @@ enum Commands {
 fn main() {
     std::env::set_var("RUST_BACKTRACE", "1");
 
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "info".into())
+        )
+        .init();
+
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .unwrap();
 
     runtime.block_on(async move {
-        let apppath = AppPath::new();
+        let apppath = match AppPath::new() {
+            Ok(path) => path,
+            Err(e) => {
+                tracing::error!("Failed to initialize app path: {:?}", e);
+                return;
+            }
+        };
         let config = Config::load(&apppath).await;
         let console = Console::new_cli();
 
@@ -111,7 +124,7 @@ async fn interactive_mode(apppath: AppPath, config: Config, console: Console) ->
 
         match CommandLineInterface::try_parse_from(args) {
             Ok(cmd) => { handle_command(&apppath, &config, &console, cmd).await; },
-            Err(err) => { println!("\n\n {}", err); },
+            Err(err) => { tracing::info!("\n\n {}", err); },
         };
     }
 

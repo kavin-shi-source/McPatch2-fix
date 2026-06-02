@@ -4,21 +4,21 @@ import {userLoginRequest} from "@/api/user.js";
 const userStore = createSlice({
   name: "user",
   initialState: {
-    username: localStorage.getItem('username') || '',
-    token: localStorage.getItem('token') || ''
+    username: sessionStorage.getItem('username') || '',
+    token: sessionStorage.getItem('token') || ''
   },
   reducers: {
     setUser: (state, action) => {
       state.username = action.payload.username;
-      localStorage.setItem('username', action.payload.username);
+      sessionStorage.setItem('username', action.payload.username);
     },
     setToken(state, action) {
       state.token = action.payload.token;
-      localStorage.setItem('token', action.payload.token);
+      sessionStorage.setItem('token', action.payload.token);
     },
     clearToken(state) {
       state.token = '';
-      localStorage.removeItem('token');
+      sessionStorage.removeItem('token');
     }
   }
 })

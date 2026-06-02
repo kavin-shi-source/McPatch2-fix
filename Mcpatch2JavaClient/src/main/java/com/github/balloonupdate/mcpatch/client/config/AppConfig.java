@@ -174,7 +174,7 @@ public class AppConfig {
             throw new RuntimeException("配置文件中找到 " + key + " 配置项了，但是配置项的类型不匹配。预期 " + clazz.getSimpleName() + " ，实际是 " + value.getClass().getSimpleName());
         }
 
-        return clazz.isInstance(value) ? (T) value : null;
+        return (T) value;
     }
 
     static String getString(Map<String, Object> map, String key, String formerKey, String defaultValue) {

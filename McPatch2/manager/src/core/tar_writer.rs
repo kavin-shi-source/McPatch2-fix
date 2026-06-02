@@ -52,7 +52,6 @@ impl TarWriter {
 
         let position = self.builder.get_ref().count();
 
-        // println!(">>> {}: {}, {}, padding: {}", path, len, ptr, padding);
         
         // 记录当前数据偏移位置
         let key = format!("{}_{}", path, version);

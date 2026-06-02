@@ -147,10 +147,6 @@ public class BytesUtils {
         while (offset < buf.length) {
             int len = buf.length - offset;
 
-            RuntimeAssert.isTrue(offset >= 0);
-            RuntimeAssert.isTrue(len >= 0);
-            RuntimeAssert.isTrue(len <= buf.length - offset);
-
             int received = input.read(buf, offset, len);
 
             if (received == -1)

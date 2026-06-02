@@ -38,7 +38,7 @@ impl CurseForgeClient {
             api_key,
             base_url: "https://api.curseforge.com".to_string(),
             cache,
-            limiter: Arc::new(limiter),
+            limiter,
         }
     }
 

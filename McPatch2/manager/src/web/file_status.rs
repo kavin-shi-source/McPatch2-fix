@@ -30,81 +30,64 @@ impl FileStatus {
 
         let path = &path.to_string();
 
-        // println!("> {}", path);
-
         if status.added_folders.contains(path) {
-            // println!("1 {}", join_string(status.added_folders.iter().map(|e| e.to_owned()), "\n"));
             return SingleFileStatus::Added;
         }
 
         if status.added_files.contains(path) {
-            // println!("2");
             return SingleFileStatus::Added;
         }
 
         if status.modified_files.contains(path) {
-            // println!("3");
             return SingleFileStatus::Modified;
         }
 
         if status.missing_folders.contains(path) {
-            // println!("4");
             return SingleFileStatus::Missing;
         }
 
         if status.missing_files.contains(path) {
-            // println!("5");
             return SingleFileStatus::Missing;
         }
 
         if status.gone_files.contains(path) {
-            // println!("6");
             return SingleFileStatus::Gone;
         }
 
         if status.come_files.contains(path) {
-            // println!("7");
             return SingleFileStatus::Come;
         }
 
         // 如果目录下有文件有变动，也要视为修改状态
         if status.added_folders.iter().any(|e| e.starts_with(path)) {
-            // println!("a");
             return SingleFileStatus::Modified;
         }
         if status.added_files.iter().any(|e| e.starts_with(path)) {
-            // println!("b");
             return SingleFileStatus::Modified;
         }
         if status.modified_files.iter().any(|e| e.starts_with(path)) {
-            // println!("c");
             return SingleFileStatus::Modified;
         }
         if status.missing_folders.iter().any(|e| e.starts_with(path)) {
-            // println!("d");
             return SingleFileStatus::Modified;
         }
         if status.missing_files.iter().any(|e| e.starts_with(path)) {
-            // println!("e");
             return SingleFileStatus::Modified;
         }
         if status.gone_files.iter().any(|e| e.starts_with(path)) {
-            // println!("f");
             return SingleFileStatus::Modified;
         }
         if status.come_files.iter().any(|e| e.starts_with(path)) {
-            // println!("g");
             return SingleFileStatus::Modified;
         }
 
-        // println!("8");
         return SingleFileStatus::Keep;
     }
 
     /// 尝试重新生成文件状态缓存
     async fn refresh(&mut self) -> &Status {
         if self.status.is_none() {
-            println!("rebuild cache");
+            tracing::debug!("rebuild file status cache");
 
             let app_path = &self.app_path;
 

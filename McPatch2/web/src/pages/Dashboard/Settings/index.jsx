@@ -10,8 +10,11 @@ const Index = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [messageApi, contextHolder] = message.useMessage();
+  const [passwordLoading, setPasswordLoading] = React.useState(false);
+  const [usernameLoading, setUsernameLoading] = React.useState(false);
 
   const submitChangeUsername = async (values) => {
+    setUsernameLoading(true)
     const {code, msg, data} = await userChangeUsernameRequest(values.newUsername);
     if (code === 1) {
       dispatch(clearToken())
@@ -19,9 +22,20 @@ const Index = () => {
     } else {
       messageApi.error(msg)
     }
+    setUsernameLoading(false)
   }
 
   const submitChangePassword = async (values) => {
+    const passwordRegex = /^(?=.*[a-zA-Z])(?=.*\d).{8,}$/;
+    if (!passwordRegex.test(values.newPassword)) {
+      messageApi.warning('密码至少需要8位，且包含字母和数字!');
+      return;
+    }
+    if (values.newPassword !== values.confirmPassword) {
+      messageApi.warning('两次输入的密码不一致!');
+      return;
+    }
+    setPasswordLoading(true)
     const {code, msg, data} = await userChangePasswordRequest(values.oldPassword, values.newPassword);
     if (code === 1) {
       dispatch(clearToken())
@@ -29,6 +43,7 @@ const Index = () => {
     } else {
       messageApi.error(msg)
     }
+    setPasswordLoading(false)
   }
 
   return (
@@ -44,7 +59,7 @@ const Index = () => {
               <Input placeholder="请输入想要设置的新用户名."/>
             </Form.Item>
             <Form.Item>
-              <Button type="primary" htmlType="submit" className="w-full">保存</Button>
+              <Button type="primary" htmlType="submit" className="w-full" loading={usernameLoading}>保存</Button>
             </Form.Item>
           </Form>
         </Card>
@@ -59,8 +74,11 @@ const Index = () => {
             <Form.Item label="新密码" name="newPassword" rules={[{required: true, message: '请输入新密码!'}]}>
               <Input placeholder="请输入想要设置的新密码."/>
             </Form.Item>
+            <Form.Item label="确认新密码" name="confirmPassword" rules={[{required: true, message: '请确认新密码!'}]}>
+              <Input placeholder="请再次输入新密码."/>
+            </Form.Item>
             <Form.Item>
-              <Button type="primary" htmlType="submit" className="w-full">保存</Button>
+              <Button type="primary" htmlType="submit" className="w-full" loading={passwordLoading}>保存</Button>
             </Form.Item>
           </Form>
         </Card>

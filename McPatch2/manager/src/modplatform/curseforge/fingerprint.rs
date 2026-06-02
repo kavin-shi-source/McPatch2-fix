@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-use crate::core::fingerprint::calculate_fingerprint;
 use crate::modplatform::curseforge::client::CurseForgeClient;
 use crate::modplatform::error::PlatformError;
 use crate::modplatform::types::{ModSource, PlatformId, UpdateFileEntry};

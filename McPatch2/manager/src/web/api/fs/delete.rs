@@ -3,6 +3,7 @@ use axum::response::Response;
 use axum::Json;
 use serde::Deserialize;
 
+use crate::web::api::fs::check_path_traversal;
 use crate::web::api::PublicResponseBody;
 use crate::web::webstate::WebState;
 
@@ -21,6 +22,10 @@ pub async fn api_delete(State(state): State<WebState>, Json(payload): Json<Reque
     }
 
     let file = state.apppath.working_dir.join(path);
+
+    if let Some(resp) = check_path_traversal(&state.apppath.working_dir, &file) {
+        return resp;
+    }
 
     if !file.exists() {
         return PublicResponseBody::<()>::err("file not exists.");

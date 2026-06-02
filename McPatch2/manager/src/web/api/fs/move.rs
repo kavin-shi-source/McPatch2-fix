@@ -3,6 +3,7 @@ use axum::response::Response;
 use axum::Json;
 use serde::Deserialize;
 
+use crate::web::api::fs::check_path_traversal;
 use crate::web::api::PublicResponseBody;
 use crate::web::webstate::WebState;
 
@@ -30,6 +31,14 @@ pub async fn api_move(State(state): State<WebState>, Json(payload): Json<Request
 
     let file_from = state.apppath.working_dir.join(&from);
     let file_to = state.apppath.working_dir.join(&to);
+
+    if let Some(resp) = check_path_traversal(&state.apppath.working_dir, &file_from) {
+        return resp;
+    }
+
+    if let Some(resp) = check_path_traversal(&state.apppath.working_dir, &file_to) {
+        return resp;
+    }
 
     if !file_from.exists() {
         return PublicResponseBody::<()>::err(&format!("'{}' not exists.", from));

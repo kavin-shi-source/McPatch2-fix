@@ -18,7 +18,7 @@ struct MRVersionsResponse {
     version_type: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 struct MRVersionFile {
     url: String,
     filename: String,

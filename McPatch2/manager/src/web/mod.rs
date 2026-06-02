@@ -56,11 +56,17 @@ use crate::web::webstate::WebState;
 
 /// 管理端主线程
 pub async fn serve_web(apppath: AppPath, config: Config) {
-    let (auth_config, first_password) = AuthConfig::load(apppath.clone()).await;
+    let (auth_config, first_password) = match AuthConfig::load(apppath.clone()).await {
+        Ok(ok) => ok,
+        Err(e) => {
+            tracing::error!("加载认证配置失败: {:?}", e);
+            return;
+        }
+    };
 
     if let Some(pwd) = first_password {
-        println!("检测到首次运行，正在生成配置信息。");
-        println!("这是账号和密码，请务必牢记。账号：admin，密码：{}（只会显示一次，请注意保存）", pwd);
+        tracing::info!("检测到首次运行，正在生成配置信息。");
+        tracing::info!("这是账号和密码，请务必牢记。账号：admin，密码：{}（只会显示一次，请注意保存）", pwd);
     }
 
     // 启动私有协议服务端
@@ -79,27 +85,25 @@ pub async fn serve_web(apppath: AppPath, config: Config) {
 
     let quick_addr = format!("{}:{}", listen_addr.replace("0.0.0.0", "127.0.0.1"), listen_port);
 
-    println!("web监听地址和端口：{} ( http://{} )", listen, quick_addr);
+    tracing::info!("web监听地址和端口：{} ( http://{} )", listen, quick_addr);
 
     // 配置tls
     let tls_config = if !config.web.tls_cert_file.is_empty() && !config.web.tls_key_file.is_empty() {
-        // println!("准备加载TLS证书");
-
         let cert_file = apppath.working_dir.join(&config.web.tls_cert_file);
         let key_file = apppath.working_dir.join(&config.web.tls_key_file);
 
         if !cert_file.exists() || !key_file.exists() {
             if !cert_file.exists() {
-                println!("TLS cert 文件找不到：{}", config.web.tls_cert_file);
+                tracing::warn!("TLS cert 文件找不到：{}", config.web.tls_cert_file);
             }
 
             if !key_file.exists() {
-                println!("TLS key 文件找不到：{}", config.web.tls_key_file);
+                tracing::warn!("TLS key 文件找不到：{}", config.web.tls_key_file);
             }
 
             None
         } else {
-            println!("TLS 加密已启用");
+            tracing::info!("TLS 加密已启用");
 
             let tls_config = RustlsConfig::from_pem_file(cert_file, key_file)
                 .await

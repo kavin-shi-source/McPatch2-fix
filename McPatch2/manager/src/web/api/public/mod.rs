@@ -11,7 +11,7 @@ use crate::utility::partial_read::PartialAsyncRead;
 use crate::web::webstate::WebState;
 
 pub async fn api_public(State(state): State<WebState>, headers: HeaderMap, Path(path): Path<String>) -> Response {
-    println!("+public: {}", path);
+    tracing::info!("+public: {}", path);
 
     let path = state.apppath.public_dir.join(path);
 
@@ -42,16 +42,24 @@ pub async fn api_public(State(state): State<WebState>, headers: HeaderMap, Path(
         }
     }
 
-    let metadata = tokio::fs::metadata(&path).await.unwrap();
+    let metadata = match tokio::fs::metadata(&path).await {
+        Ok(m) => m,
+        Err(_) => return Response::builder().status(404).body(Body::empty()).unwrap(),
+    };
 
-    let mut file = tokio::fs::File::options()
+    let mut file = match tokio::fs::File::options()
         .read(true)
         .open(&path)
         .await
-        .unwrap();
+    {
+        Ok(f) => f,
+        Err(_) => return Response::builder().status(500).body(Body::empty()).unwrap(),
+    };
 
     if let Some(range) = &range {
-        file.seek(std::io::SeekFrom::Start(range.start)).await.unwrap();
+        if file.seek(std::io::SeekFrom::Start(range.start)).await.is_err() {
+            return Response::builder().status(500).body(Body::empty()).unwrap();
+        }
     }
 
     let len = match &range {

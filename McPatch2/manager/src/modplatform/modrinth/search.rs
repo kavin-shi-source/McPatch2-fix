@@ -16,8 +16,8 @@ struct MRHit {
     title: String,
     description: String,
     icon_url: Option<String>,
-    game_versions: Vec<String>,
-    loaders: Vec<String>,
+    versions: Vec<String>,
+    categories: Vec<String>,
     downloads: u64,
 }
 
@@ -50,15 +50,21 @@ impl ModrinthClient {
                 let mr_resp: MRSearchResponse = resp.json()
                     .await
                     .map_err(|e| PlatformError::ParseError(e.to_string()))?;
-                Ok(mr_resp.hits.into_iter().map(|h| ModSearchResult {
-                    platform: PlatformId::Modrinth,
-                    platform_id: h.project_id,
-                    name: h.title,
-                    summary: h.description,
-                    icon_url: h.icon_url,
-                    game_versions: h.game_versions,
-                    mod_loaders: h.loaders,
-                    download_count: h.downloads,
+                Ok(mr_resp.hits.into_iter().map(|h| {
+                    let mod_loaders: Vec<String> = h.categories.iter()
+                        .filter(|c| matches!(c.as_str(), "forge" | "fabric" | "neoforge" | "quilt"))
+                        .cloned()
+                        .collect();
+                    ModSearchResult {
+                        platform: PlatformId::Modrinth,
+                        platform_id: h.project_id,
+                        name: h.title,
+                        summary: h.description,
+                        icon_url: h.icon_url,
+                        game_versions: h.versions,
+                        mod_loaders,
+                        download_count: h.downloads,
+                    }
                 }).collect())
             },
             StatusCode::TOO_MANY_REQUESTS => {

@@ -5,6 +5,7 @@ use base64ct::Encoding;
 use serde::Deserialize;
 use serde::Serialize;
 
+use crate::web::api::fs::check_path_traversal;
 use crate::web::api::PublicResponseBody;
 use crate::web::webstate::WebState;
 
@@ -28,13 +29,18 @@ pub async fn api_download(State(state): State<WebState>, Json(payload): Json<Req
 
     let file = state.apppath.working_dir.join(payload.path);
 
+    if let Some(resp) = check_path_traversal(&state.apppath.working_dir, &file) {
+        return resp;
+    }
+
     if !file.exists() || !file.is_file() {
         return PublicResponseBody::<ResponseData>::err("file not exists.");
     }
 
-    // println!("download: {:?}", file);
-
-    let data = tokio::fs::read(&file).await.unwrap();
+    let data = match tokio::fs::read(&file).await {
+        Ok(d) => d,
+        Err(_) => return PublicResponseBody::<ResponseData>::err("failed to read file"),
+    };
 
     let b64 = base64ct::Base64::encode_string(&data);
 
