@@ -3,10 +3,10 @@ use crate::modplatform::error::PlatformError;
 use crate::modplatform::types::{DownloadUrlEntry, PlatformId};
 
 impl CurseForgeClient {
-    pub async fn get_download_url(&self, version_id: &str) -> Result<DownloadUrlEntry, PlatformError> {
+    pub async fn get_download_url(&self, mod_id: &str, version_id: &str) -> Result<DownloadUrlEntry, PlatformError> {
         self.limiter.acquire();
 
-        let url = format!("{}/v1/mods/{}/files/{}", self.base_url, "0", version_id);
+        let url = format!("{}/v1/mods/{}/files/{}", self.base_url, mod_id, version_id);
 
         let resp = self.http_client
             .get(&url)

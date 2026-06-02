@@ -133,7 +133,17 @@ pub fn task_pack(version_label: String, change_logs: String, apppath: &AppPath, 
                 .unwrap_or("")
                 .to_lowercase();
             if ext == "jar" || ext == "zip" {
-                console.log_debug(format!("识别模组: {}", path));
+                let result = router.resolve_file_source(&path);
+                match result {
+                    Ok(source) => {
+                        if source.download_url.is_some() {
+                            console.log_info(format!("  识别为: {} (来自 {})", source.mod_name.as_deref().unwrap_or("未知"), source.platform.as_ref().map(|p| p.to_string()).unwrap_or_default()));
+                        }
+                    }
+                    Err(e) => {
+                        console.log_debug(format!("  识别失败: {:?}", e));
+                    }
+                }
             }
         }
     }

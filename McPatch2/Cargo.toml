@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = [
+    "manager", 
+    "xtask"
+]
+
+[workspace.package]
+edition = "2021"
+
+[profile.release]
+debug = "line-directives-only"
+split-debuginfo = "packed"
+overflow-checks = true

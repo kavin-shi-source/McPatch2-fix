@@ -1,9 +1,16 @@
+use std::sync::Arc;
+
 use axum::extract::State;
 use axum::Json;
 use serde::Deserialize;
 use serde::Serialize;
 
 use crate::config::core_config::ModPlatformConfig;
+use crate::modplatform::cache::ModPlatformCache;
+use crate::modplatform::curseforge::client::CurseForgeClient;
+use crate::modplatform::modrinth::client::ModrinthClient;
+use crate::modplatform::rate_limiter::RateLimiter;
+use crate::modplatform::types::PlatformId;
 use crate::web::api::PublicResponseBody;
 use crate::web::webstate::WebState;
 
@@ -22,6 +29,20 @@ pub struct SearchRequest {
     pub platform: Option<String>,
     pub game_version: Option<String>,
     pub mod_loader: Option<String>,
+}
+
+/// 搜索响应项
+#[derive(Serialize)]
+pub struct SearchResultItem {
+    pub platform: String,
+    pub platform_id: String,
+    pub name: String,
+    pub description: String,
+    pub logo_url: Option<String>,
+    pub game_versions: Vec<String>,
+    pub mod_loaders: Vec<String>,
+    pub downloads: u64,
+    pub author: String,
 }
 
 /// 识别结果
@@ -59,14 +80,69 @@ pub async fn api_modplatform_search(
 
     if platform == "curseforge" || platform == "all" {
         if !config.curseforge.api_key.is_empty() {
-            // CurseForge 搜索将在 Phase 7 完整实现
-            // 此处返回引导提示
+            let cache = Arc::new(ModPlatformCache::new(300, 300, 300, 300, 300, 100));
+            let limiter = Arc::new(RateLimiter::new(5, 5));
+            let proxy = config.proxy.as_ref().map(|p| format!("{}:{}", p.host, p.port));
+            let client = CurseForgeClient::new(
+                config.curseforge.api_key.clone(),
+                cache,
+                limiter,
+                proxy.as_deref(),
+            );
+            match client.search_mods(&req.query, req.game_version.as_deref(), req.mod_loader.as_deref()).await {
+                Ok(mods) => {
+                    for m in mods {
+                        results.push(SearchResultItem {
+                            platform: m.platform.to_string(),
+                            platform_id: m.platform_id,
+                            name: m.name,
+                            description: m.summary,
+                            logo_url: m.icon_url,
+                            game_versions: m.game_versions,
+                            mod_loaders: m.mod_loaders,
+                            downloads: m.download_count,
+                            author: String::new(),
+                        });
+                    }
+                }
+                Err(e) => {
+                    log::warn!("CurseForge 搜索失败: {:?}", e);
+                }
+            }
         }
     }
 
     if platform == "modrinth" || platform == "all" {
         if config.modrinth.api_token.is_some() {
-            // Modrinth 搜索将在 Phase 7 完整实现
+            let cache = Arc::new(ModPlatformCache::new(300, 300, 300, 300, 300, 100));
+            let limiter = Arc::new(RateLimiter::new(5, 5));
+            let proxy = config.proxy.as_ref().map(|p| format!("{}:{}", p.host, p.port));
+            let client = ModrinthClient::new(
+                config.modrinth.api_token.clone(),
+                cache,
+                limiter,
+                proxy.as_deref(),
+            );
+            match client.search_mods(&req.query, req.game_version.as_deref(), req.mod_loader.as_deref()).await {
+                Ok(mods) => {
+                    for m in mods {
+                        results.push(SearchResultItem {
+                            platform: m.platform.to_string(),
+                            platform_id: m.platform_id,
+                            name: m.name,
+                            description: m.summary,
+                            logo_url: m.icon_url,
+                            game_versions: m.game_versions,
+                            mod_loaders: m.mod_loaders,
+                            downloads: m.download_count,
+                            author: String::new(),
+                        });
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Modrinth 搜索失败: {:?}", e);
+                }
+            }
         }
     }
 
