@@ -2,6 +2,8 @@ pub mod types;
 pub mod error;
 pub mod cache;
 pub mod rate_limiter;
+pub mod curseforge;
+pub mod modrinth;
 
 use std::future::Future;
 use std::pin::Pin;
