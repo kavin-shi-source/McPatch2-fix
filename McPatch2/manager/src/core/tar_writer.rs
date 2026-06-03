@@ -6,12 +6,14 @@ use std::path::Path;
 
 use crate::core::data::version_meta::FileChange;
 use crate::core::data::version_meta_group::VersionMetaGroup;
+use crate::core::file_hash::calculate_hash;
 use crate::utility::counted_write::CountedWrite;
 use crate::utility::partial_read::PartialRead;
 
 pub struct MetadataLocation {
     pub offset: u64,
     pub length: u64,
+    pub hash: String,
 }
 
 /// 代表一个更新包写入器，用于生成tar格式的更新包
@@ -84,6 +86,8 @@ impl TarWriter {
         let metadata_offset = self.builder.get_ref().count();
         let file_content = meta_group.serialize();
         let file_content = file_content.as_bytes();
+        let mut cursor = std::io::Cursor::new(file_content);
+        let metadata_hash = calculate_hash(&mut cursor);
 
         // 写入元数据
         let mut header = tar::Header::new_gnu();
@@ -97,6 +101,7 @@ impl TarWriter {
         MetadataLocation {
             offset: metadata_offset + 512,
             length: file_content.len() as u64,
+            hash: metadata_hash,
         }
     }
 }
@@ -104,5 +109,42 @@ impl TarWriter {
 impl Drop for TarWriter {
     fn drop(&mut self) {
         assert!(self.finished, "TarWriter has not closed yet");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::LinkedList;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use crate::core::data::version_meta::VersionMeta;
+
+    use super::*;
+
+    #[test]
+    fn finish_returns_metadata_hash() {
+        let temp_file = std::env::temp_dir().join(format!(
+            "mcpatch-tarwriter-{}.tar",
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+
+        let meta_group = VersionMetaGroup::with_one(VersionMeta::new(
+            "1.0.0".to_owned(),
+            "logs".to_owned(),
+            LinkedList::new(),
+        ));
+        let serialized = meta_group.serialize();
+        let mut expected_reader = std::io::Cursor::new(serialized.as_bytes());
+        let expected_hash = calculate_hash(&mut expected_reader);
+
+        let writer = TarWriter::new(&temp_file);
+        let location = writer.finish(meta_group);
+
+        assert_eq!(location.hash, expected_hash);
+
+        let _ = std::fs::remove_file(temp_file);
     }
 }

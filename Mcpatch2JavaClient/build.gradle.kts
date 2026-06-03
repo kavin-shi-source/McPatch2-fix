@@ -27,6 +27,12 @@ dependencies {
     implementation("org.yaml:snakeyaml:2.0")
     implementation("commons-codec:commons-codec:1.18.0")
 
+    testImplementation(platform("org.junit:junit-bom:5.10.2"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 tasks.withType<ShadowJar> {

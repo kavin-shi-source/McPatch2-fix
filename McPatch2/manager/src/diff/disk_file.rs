@@ -11,6 +11,7 @@ use std::rc::Weak;
 use std::time::SystemTime;
 
 use crate::core::file_hash::calculate_hash;
+use crate::core::file_hash::matches_expected_hash;
 use crate::diff::abstract_file::calculate_path_helper;
 use crate::diff::abstract_file::find_file_helper;
 use crate::diff::abstract_file::walk_abstract_file;
@@ -132,6 +133,13 @@ impl AbstractFile for DiskFile {
         drop(hash_mut);
 
         BorrowedHash(self.hash.borrow())
+    }
+
+    fn matches_hash(&self, expected: &str) -> bool {
+        assert!(!self.is_dir);
+
+        let mut fd = std::fs::File::open(&self.file).unwrap();
+        matches_expected_hash(&mut fd, expected)
     }
 
     fn len(&self) -> u64 { 

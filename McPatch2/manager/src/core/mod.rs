@@ -19,3 +19,4 @@ pub mod rule_filter;
 pub mod data;
 pub mod file_hash;
 pub mod fingerprint;
+pub mod update_signature;

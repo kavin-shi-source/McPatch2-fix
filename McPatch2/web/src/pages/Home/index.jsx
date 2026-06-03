@@ -1,14 +1,10 @@
 import {useNavigate} from "react-router-dom";
 import {useSelector} from "react-redux";
-import {theme} from "antd";
-
-const {useToken} = theme;
 
 const Index = () => {
 
   const user = useSelector(state => state.user)
   const navigate = useNavigate();
-  const {token} = useToken();
 
   const checkStatus = () => {
     if (user.token) {

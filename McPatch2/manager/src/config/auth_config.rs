@@ -104,7 +104,7 @@ impl AuthConfig {
         }
 
         // 检查token是否有效
-        if lock.token != hash(token) {
+        if !verify(token, &lock.token) {
             return Err("invalid token");
         }
 
@@ -196,4 +196,51 @@ fn random_password() -> String {
     }
 
     password
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use tokio::sync::Mutex;
+
+    use super::{AuthConfig, Inner};
+    use crate::app_path::AppPath;
+
+    fn test_app_path() -> AppPath {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let working_dir = std::env::temp_dir().join(format!("mcpatch-auth-test-{unique}"));
+
+        std::fs::create_dir_all(&working_dir).unwrap();
+
+        AppPath {
+            workspace_dir: working_dir.join("workspace"),
+            public_dir: working_dir.join("public"),
+            web_dir: working_dir.join("webpage"),
+            index_file: working_dir.join("public/index.json"),
+            config_file: working_dir.join("config.toml"),
+            auth_file: working_dir.join("user.toml"),
+            working_dir,
+        }
+    }
+
+    fn build_auth_config() -> AuthConfig {
+        AuthConfig {
+            app_path: test_app_path(),
+            inner: Arc::new(Mutex::new(Inner::new("password".to_owned()))),
+        }
+    }
+
+    #[tokio::test]
+    async fn regenerated_token_is_immediately_valid() {
+        let mut config = build_auth_config();
+
+        let token = config.regen_token().await;
+
+        assert!(config.validate_token(&token).await.is_ok());
+    }
 }

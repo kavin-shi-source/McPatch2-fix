@@ -40,6 +40,9 @@ pub struct VersionIndex {
 
     /// 整个tar包文件的校验
     pub hash: String,
+
+    /// 元数据索引签名
+    pub signature: String,
 }
 
 /// 代表一个索引文件
@@ -72,8 +75,9 @@ impl IndexFile {
             let offset = v["offset"].as_u64().unwrap();
             let len = v["length"].as_u64().unwrap();
             let hash = v["hash"].as_str().unwrap().to_owned();
+            let signature = v["signature"].as_str().unwrap_or("").to_owned();
 
-            versions.push(VersionIndex { label, filename, len, offset, hash })
+            versions.push(VersionIndex { label, filename, len, offset, hash, signature })
         }
 
         Self { versions }
@@ -91,6 +95,7 @@ impl IndexFile {
             obj.insert("offset", v.offset).unwrap();
             obj.insert("length", v.len).unwrap();
             obj.insert("hash", v.hash.to_owned()).unwrap();
+            obj.insert("signature", v.signature.to_owned()).unwrap();
             
             root.push(obj).unwrap();
         }

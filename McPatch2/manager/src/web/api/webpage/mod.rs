@@ -3,6 +3,7 @@ use axum::extract::Path;
 use axum::extract::State;
 use axum::response::Response;
 
+use crate::web::api::fs::check_path_traversal;
 use crate::web::webstate::WebState;
 
 #[cfg(feature = "bundle-webpage")]
@@ -65,9 +66,17 @@ async fn respond_from_inner(mut path: &str, state: &WebState) -> Response {
 async fn respond_from_outer(path: &str, state: &WebState) -> Response {
     let mut path = state.apppath.web_dir.join(path);
 
+    if check_path_traversal(&state.apppath.web_dir, &path).is_some() {
+        return Response::builder().status(404).body(Body::empty()).unwrap();
+    }
+
     // 文件找不到就尝试访问404文件
     if !path.is_file() && !state.config.web.redirect_404.is_empty() {
         path = state.apppath.web_dir.join(&state.config.web.redirect_404);
+
+        if check_path_traversal(&state.apppath.web_dir, &path).is_some() {
+            return Response::builder().status(404).body(Body::empty()).unwrap();
+        }
     }
 
     // 如果还是找不到就返回404了

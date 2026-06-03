@@ -38,12 +38,18 @@ public class VersionIndex {
      */
     public String hash;
 
+    /**
+     * 版本索引签名
+     */
+    public String signature;
+
     public VersionIndex(JSONObject json) {
         label = json.getString("label");
         filename = json.getString("filename");
         offset = json.getLong("offset");
         len = json.getInt("length");
         hash = json.getString("hash");
+        signature = json.optString("signature", "");
     }
 }
 

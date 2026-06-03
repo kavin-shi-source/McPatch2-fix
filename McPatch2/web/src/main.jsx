@@ -11,7 +11,10 @@ import store from "@/store/index.js";
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <Provider store={store}>
-      <RouterProvider router={router}/>
+      <RouterProvider
+        router={router}
+        fallbackElement={<div className="min-h-screen flex items-center justify-center text-gray-500">加载中...</div>}
+      />
     </Provider>
   </StrictMode>
 )

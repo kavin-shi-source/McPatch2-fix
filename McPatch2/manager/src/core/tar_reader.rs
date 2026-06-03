@@ -16,7 +16,7 @@ pub struct TarReader {
 impl TarReader {
     /// 创建一个TarReader，从`file`读取数据
     pub fn new(file: impl AsRef<Path>) -> Self {
-        Self { file, size: 0, read: 0 }
+        Self { open: std::fs::File::open(file).unwrap() }
     }
 
     /// 读取更新包中的元数据，需要提供元数据的`offset`和`len`以便定位

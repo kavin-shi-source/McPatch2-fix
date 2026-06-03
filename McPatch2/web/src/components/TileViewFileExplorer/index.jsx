@@ -1,7 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import FileItem from "@/components/TileViewFileExplorer/FileItem/index.jsx";
 import './index.css'
-import {fsDeleteRequest, fsSignFileRequest} from "@/api/fs.js";
+import {fsDeleteRequest, fsDownloadRequest} from "@/api/fs.js";
 import {message} from "antd";
 import {showFileSize, showTime} from "@/utils/tool.js";
 
@@ -40,6 +40,12 @@ const Index = ({path, getFileList, items, handlerNextPath}) => {
     };
   }, []);
 
+  const base64ToBlob = (content) => {
+    const binary = window.atob(content);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    return new Blob([bytes], {type: 'application/octet-stream'});
+  };
+
   const fsOpenOrDownload = async (item) => {
     closeMenu()
     if (item.is_directory) {
@@ -48,22 +54,22 @@ const Index = ({path, getFileList, items, handlerNextPath}) => {
       let key = path.join('/');
       key = key.length === 0 ? item.name : `${key}/${item.name}`
 
-      const {code, msg, data} = await fsSignFileRequest(key);
-      if (code === 1) {
-        const token = sessionStorage.getItem("token") || localStorage.getItem("token");
-        const response = await fetch(`/api/fs/download?path=${encodeURIComponent(key)}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) throw new Error('下载失败');
-        const blob = await response.blob();
+      try {
+        const {code, msg, data} = await fsDownloadRequest(key);
+        if (code !== 1) {
+          messageApi.error(msg);
+          return;
+        }
+
+        const blob = base64ToBlob(data.content);
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = item.name || 'download';
         a.click();
         URL.revokeObjectURL(url);
-      } else {
-        messageApi.error(msg);
+      } catch (_error) {
+        messageApi.error('下载失败');
       }
     }
   }

@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use crate::core::data::version_meta::FileChange;
 use crate::core::data::version_meta::VersionMeta;
-use crate::core::file_hash::calculate_hash;
+use crate::core::file_hash::calculate_hash_for_expected;
 use crate::core::tar_reader::TarReader;
 use crate::diff::abstract_file::AbstractFile;
 use crate::diff::diff::Diff;
@@ -95,11 +95,11 @@ impl ArchiveTester {
 
             let mut reader = TarReader::new(&archive);
             let mut open = reader.open_file(*offset, *len);
-            let actual = calculate_hash(&mut open);
             let expected = up.hash();
             let expected = expected.deref();
+            let actual = calculate_hash_for_expected(&mut open, expected);
 
-            if &actual != expected {
+            if !actual.eq_ignore_ascii_case(expected) {
                 return Err(Failure {
                     path: path.to_owned(), 
                     label: label.to_owned(), 

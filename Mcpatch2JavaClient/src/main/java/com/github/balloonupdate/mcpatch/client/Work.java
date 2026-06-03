@@ -30,6 +30,9 @@ import java.util.stream.Collectors;
  * 代表更新的主逻辑
  */
 public class Work {
+    private static final String LEGACY_METADATA_HASH = "no hash";
+    private static boolean indexSignatureKeyWarningShown = false;
+
     /**
      * UI窗口，非图形模式下会是null
      */
@@ -65,6 +68,62 @@ public class Work {
      */
     Main.StartMethod startMethod;
 
+    private Path resolveUnderBase(Path rootDir, String rawPath) throws McpatchBusinessException {
+        try {
+            return PathUtility.resolveUnderBase(rootDir, rawPath);
+        } catch (IOException e) {
+            throw new McpatchBusinessException("服务端下发了非法路径: " + rawPath, e);
+        }
+    }
+
+    private Path resolveUnderBaseUnchecked(Path rootDir, String rawPath) {
+        try {
+            return PathUtility.resolveUnderBase(rootDir, rawPath);
+        } catch (IOException e) {
+            throw new IllegalStateException("服务端下发了非法路径: " + rawPath, e);
+        }
+    }
+
+    static void verifyMetadataHash(VersionIndex version, String metadataText) throws McpatchBusinessException {
+        if (version.hash == null || version.hash.isBlank() || LEGACY_METADATA_HASH.equalsIgnoreCase(version.hash)) {
+            Log.warn("版本 " + version.label + " 没有提供可用的元数据校验值，继续使用兼容模式");
+            return;
+        }
+
+        byte[] metadataBytes = metadataText.getBytes(StandardCharsets.UTF_8);
+        String actualHash = HashUtility.calculateHashForExpected(metadataBytes, version.hash);
+
+        if (!version.hash.equalsIgnoreCase(actualHash)) {
+            throw new McpatchBusinessException("版本 " + version.label + " 的元数据校验失败，预期 " + version.hash + "，实际 " + actualHash);
+        }
+    }
+
+    static void verifyVersionIndexSignature(VersionIndex version, AppConfig config) throws McpatchBusinessException {
+        if (!IndexSignatureVerifier.hasSignature(version)) {
+            Log.warn("版本 " + version.label + " 没有提供索引签名，继续使用兼容模式");
+            return;
+        }
+
+        if (!indexSignatureKeyWarningShown && IndexSignatureVerifier.isConfiguredPublicKeyMissing(config.indexSignaturePublicKey)) {
+            indexSignatureKeyWarningShown = true;
+            Log.warn("当前未配置 index-signature-public-key，遇到带签名的新索引时将拒绝更新");
+        }
+
+        try {
+            if (!IndexSignatureVerifier.verify(version, config.indexSignaturePublicKey)) {
+                throw new McpatchBusinessException("版本 " + version.label + " 的索引签名校验失败");
+            }
+        } catch (IllegalStateException e) {
+            throw new McpatchBusinessException("版本 " + version.label + " 的索引签名校验失败", e);
+        }
+    }
+
+    static void verifyIndexSignatures(IndexFile indexFile, AppConfig config) throws McpatchBusinessException {
+        for (VersionIndex version : indexFile.versions) {
+            verifyVersionIndexSignature(version, config);
+        }
+    }
+
     /**
      * 逻辑入口
      */
@@ -98,6 +157,7 @@ public class Work {
         String indexJsonText = server.requestText("index.json", Range.Empty(), "index file");
 
         IndexFile serverVersions = IndexFile.loadFromJson(indexJsonText);
+        verifyIndexSignatures(serverVersions, config);
 
         // 检查服务端版本数量
         if (serverVersions.len() == 0) {
@@ -166,6 +226,8 @@ public class Work {
                     throw new McpatchBusinessException("元数据下载失败", e);
                 }
 
+                verifyMetadataHash(ver, meta_text);
+
                 // 解码元数据
                 JSONArray metas;
 
@@ -197,7 +259,7 @@ public class Work {
 //            }
 
             // 定位临时目录
-            Path tempDir = baseDir.resolve(".mcpatch-temp");
+            Path tempDir = resolveUnderBase(baseDir, ".mcpatch-temp");
 
             // 解析元数据，收集要更新的文件列表
             ArrayList<String> createFolders = new ArrayList<>();
@@ -215,6 +277,7 @@ public class Work {
                 for (FileChange change : meta.metadata.changes) {
                     if (change instanceof FileChange.CreateFolder) {
                         FileChange.CreateFolder op = (FileChange.CreateFolder) change;
+                        resolveUnderBase(baseDir, op.path);
 
                         RuntimeAssert.isTrue(!createFolders.contains(op.path));
 
@@ -228,6 +291,7 @@ public class Work {
 
                     if (change instanceof FileChange.UpdateFile) {
                         FileChange.UpdateFile op = (FileChange.UpdateFile) change;
+                        resolveUnderBase(baseDir, op.path);
 
                         // 删除已有的东西，避免下面重复添加报错
                         updateFiles.removeIf(e -> e.path.equals(op.path));
@@ -236,12 +300,13 @@ public class Work {
                         deleteFiles.remove(op.path);
 
                         // 收集起来
-                        Path tempPath = tempDir.resolve(op.path + ".temp");
+                        Path tempPath = resolveUnderBase(tempDir, op.path + ".temp");
                         updateFiles.add(new TempUpdateFile(meta.filename, meta.metadata.label, op, tempPath));
                     }
 
                     if (change instanceof FileChange.DeleteFolder) {
                         FileChange.DeleteFolder op = (FileChange.DeleteFolder) change;
+                        resolveUnderBase(baseDir, op.path);
 
                         // 先删除 createFolders 里的文件夹。没有的话，再加入 deleteFolders 里面
                         if (createFolders.contains(op.path)) {
@@ -253,6 +318,7 @@ public class Work {
 
                     if (change instanceof FileChange.DeleteFile) {
                         FileChange.DeleteFile op = (FileChange.DeleteFile) change;
+                        resolveUnderBase(baseDir, op.path);
 
                         // 处理那些刚下载又马上要被删的文件，这些文件不用重复下载
                         if (updateFiles.stream().anyMatch(e -> e.path.equals(op.path))) {
@@ -264,6 +330,8 @@ public class Work {
 
                     if (change instanceof FileChange.MoveFile) {
                         FileChange.MoveFile op = (FileChange.MoveFile) change;
+                        resolveUnderBase(baseDir, op.from);
+                        resolveUnderBase(baseDir, op.to);
 
                         // 单独处理还没有下载的文件
                         Optional<TempUpdateFile> find = updateFiles.stream()
@@ -276,7 +344,7 @@ public class Work {
 
                             // 修改下载目的地为新的路径
                             find.get().path = op.to;
-                            find.get().tempPath = tempDir.resolve(find.get().path + ".temp");
+                            find.get().tempPath = resolveUnderBase(tempDir, find.get().path + ".temp");
                         } else {
                             // 不能和别人的from或者to冲突了
                             RuntimeAssert.isTrue(!moveFiles.stream().anyMatch(e -> e.from.equals(op.from) || e.to.equals(op.to)));
@@ -292,17 +360,23 @@ public class Work {
             Path currentJar = Env.getJarPath();
 
             if (currentJar != null) {
-                createFolders.removeIf(e -> baseDir.resolve(e).equals(currentJar));
-                updateFiles.removeIf(e -> baseDir.resolve(e.path).equals(currentJar));
-                deleteFiles.removeIf(e -> baseDir.resolve(e).equals(currentJar));
-                moveFiles.removeIf(e -> baseDir.resolve(e.from).equals(currentJar) || baseDir.resolve(e.to).equals(currentJar));
+                Path normalizedCurrentJar = currentJar.toAbsolutePath().normalize();
+                createFolders.removeIf(e -> resolveUnderBaseUnchecked(baseDir, e).equals(normalizedCurrentJar));
+                updateFiles.removeIf(e -> resolveUnderBaseUnchecked(baseDir, e.path).equals(normalizedCurrentJar));
+                deleteFiles.removeIf(e -> resolveUnderBaseUnchecked(baseDir, e).equals(normalizedCurrentJar));
+                moveFiles.removeIf(e ->
+                        resolveUnderBaseUnchecked(baseDir, e.from).equals(normalizedCurrentJar) ||
+                        resolveUnderBaseUnchecked(baseDir, e.to).equals(normalizedCurrentJar));
             }
 
             // 2.不能更新日志文件
-            createFolders.removeIf(e -> baseDir.resolve(e).equals(logFilePath));
-            updateFiles.removeIf(e -> baseDir.resolve(e.path).equals(logFilePath));
-            deleteFiles.removeIf(e -> baseDir.resolve(e).equals(logFilePath));
-            moveFiles.removeIf(e -> baseDir.resolve(e.from).equals(logFilePath) || baseDir.resolve(e.to).equals(logFilePath));
+            Path normalizedLogFilePath = logFilePath.toAbsolutePath().normalize();
+            createFolders.removeIf(e -> resolveUnderBaseUnchecked(baseDir, e).equals(normalizedLogFilePath));
+            updateFiles.removeIf(e -> resolveUnderBaseUnchecked(baseDir, e.path).equals(normalizedLogFilePath));
+            deleteFiles.removeIf(e -> resolveUnderBaseUnchecked(baseDir, e).equals(normalizedLogFilePath));
+            moveFiles.removeIf(e ->
+                    resolveUnderBaseUnchecked(baseDir, e.from).equals(normalizedLogFilePath) ||
+                    resolveUnderBaseUnchecked(baseDir, e.to).equals(normalizedLogFilePath));
 
             // 单独为移动文件输出一份日志，具体原因忘了，但是输出一下好像也没有坏处
             for (TempMoveFile mv : moveFiles) {
@@ -326,7 +400,7 @@ public class Work {
                     break;
 
                 TempUpdateFile f = updateFiles.get(i);
-                Path targetPath = baseDir.resolve(f.path);
+                Path targetPath = resolveUnderBase(baseDir, f.path);
 
                 // 检查一下看能不能跳过下载
                 // 1.如果不存在的话，肯定跳过不了
@@ -360,12 +434,12 @@ public class Work {
                     window.setLabelSecondaryText(PathUtility.getFilename(f.path));
 
                 try {
-                    hash = HashUtility.calculateHash(targetPath);
+                    hash = HashUtility.calculateHashForExpected(targetPath, f.hash);
                 } catch (IOException ex) {
                     throw new McpatchBusinessException("计算文件hash时遇到问题", ex);
                 }
 
-                if (!hash.equals(f.hash)) {
+                if (!hash.equalsIgnoreCase(f.hash)) {
                     continue;
                 }
 
@@ -383,7 +457,7 @@ public class Work {
             // 尽可能跳过要创建的目录
             for (int i = createFolders.size() - 1; i >= 0; i--) {
                 String f = createFolders.get(i);
-                Path path = baseDir.resolve(f);
+                Path path = resolveUnderBase(baseDir, f);
 
                 if (Files.exists(path))
                     createFolders.remove(i);
@@ -392,7 +466,7 @@ public class Work {
             // 尽可能跳过要删除的文件
             for (int i = deleteFiles.size() - 1; i >= 0; i--) {
                 String f = deleteFiles.get(i);
-                Path path = baseDir.resolve(f);
+                Path path = resolveUnderBase(baseDir, f);
 
                 if (!Files.exists(path))
                     deleteFiles.remove(i);
@@ -401,7 +475,7 @@ public class Work {
             // 尽可能跳过要删除的目录
             for (int i = deleteFolders.size() - 1; i >= 0; i--) {
                 String f = deleteFolders.get(i);
-                Path path = baseDir.resolve(f);
+                Path path = resolveUnderBase(baseDir, f);
 
                 if (!Files.exists(path))
                     deleteFolders.remove(i);
@@ -513,9 +587,9 @@ public class Work {
 
 
                 // 校验文件
-                String hash = HashUtility.calculateHash(f.tempPath);
+                String hash = HashUtility.calculateHashForExpected(f.tempPath, f.hash);
 
-                if (!hash.equals(f.hash))
+                if (!hash.equalsIgnoreCase(f.hash))
                     throw new McpatchBusinessException(String.format("临时文件校验失败，预期 %s，实际 %s，文件路径 %s", f.hash, hash, f.tempPath.toFile().getAbsolutePath()));
             }
 
@@ -532,7 +606,7 @@ public class Work {
             for (String f : createFolders) {
                 Log.debug("  b.创建目录 " + f);
 
-                Path path = baseDir.resolve(f);
+                Path path = resolveUnderBase(baseDir, f);
 
                 Log.debug("    MKDIR " + path);
 
@@ -549,8 +623,8 @@ public class Work {
             for (TempMoveFile move : moveFiles) {
                 Log.debug("  c.移动文件 " + move.from + " => " + move.to);
 
-                Path from = baseDir.resolve(move.from);
-                Path to = baseDir.resolve(move.to);
+                Path from = resolveUnderBase(baseDir, move.from);
+                Path to = resolveUnderBase(baseDir, move.to);
 
                 Log.debug("    From " + from);
                 Log.debug("    To   " + to);
@@ -570,7 +644,7 @@ public class Work {
             for (String f : deleteFiles) {
                 Log.debug("  d.删除旧文件 " + f);
 
-                Path path = baseDir.resolve(f);
+                Path path = resolveUnderBase(baseDir, f);
 
                 PathUtility.delete(path);
             }
@@ -584,7 +658,7 @@ public class Work {
 
             for (TempUpdateFile f : updateFiles) {
                 Path from = f.tempPath;
-                Path to = baseDir.resolve(f.path);
+                Path to = resolveUnderBase(baseDir, f.path);
 
                 Log.debug(String.format("  e.移动临时文件 %s", f.path));
                 Log.debug(String.format("    From %s", from));

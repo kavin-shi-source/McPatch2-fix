@@ -34,6 +34,11 @@ pub trait AbstractFile : Clone {
     
     /// 获取哈希值
     fn hash(&self) -> impl Deref<Target = String>;
+
+    /// 按给定的期望哈希值判断文件内容是否匹配
+    fn matches_hash(&self, expected: &str) -> bool {
+        self.hash().deref().eq_ignore_ascii_case(expected)
+    }
     
     /// 获取文件长度
     fn len(&self) -> u64;

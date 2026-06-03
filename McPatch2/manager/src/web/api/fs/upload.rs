@@ -1,7 +1,6 @@
 use axum::extract::State;
 use axum::response::Response;
 use axum::Json;
-use base64ct::Base64;
 use base64ct::Encoding;
 use serde::Deserialize;
 use serde::Serialize;

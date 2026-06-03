@@ -28,7 +28,7 @@ impl CurseForgeClient {
         struct CFFileData {
             download_url: String,
             file_name: String,
-            mod_id: i64,
+            _mod_id: i64,
         }
 
         let body: CFFileResponse = resp.json()

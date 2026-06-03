@@ -85,6 +85,10 @@ ignore-ssl-cert: false
 # 是否忽略对http协议中content-length的校验
 ignore-http-content-length: false
 
+# 更新索引验签公钥，使用 X.509 DER 的 base64 文本
+# 历史无签名索引在兼容模式下仍可继续，但一旦服务端开始下发带签名的索引，就必须显式配置此项
+index-signature-public-key: ""
+
 # 测试模式，专门用来调试更新时的网速
 # 开启后每次都会重头更新，且不会优化任何文件下载
 # 仅用于测试用途，平时正常使用勿开

@@ -4,6 +4,7 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, USER_AGENT};
 
 use crate::modplatform::cache::ModPlatformCache;
 use crate::modplatform::rate_limiter::RateLimiter;
+use crate::modplatform::configure_proxy;
 
 /// CurseForge API 客户端
 pub struct CurseForgeClient {
@@ -21,17 +22,9 @@ impl CurseForgeClient {
         limiter: Arc<RateLimiter>,
         proxy_url: Option<&str>,
     ) -> Self {
-        let mut builder = reqwest::Client::builder()
+        let builder = reqwest::Client::builder()
             .user_agent("MCPATCH2/2.1");
-
-        if let Some(proxy) = proxy_url {
-            if let Ok(p) = reqwest::Proxy::http(proxy) {
-                builder = builder.proxy(p);
-            }
-            if let Ok(p) = reqwest::Proxy::https(proxy) {
-                builder = builder.proxy(p);
-            }
-        }
+        let builder = configure_proxy(builder, proxy_url);
 
         Self {
             http_client: builder.build().unwrap(),

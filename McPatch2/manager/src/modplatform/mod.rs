@@ -8,8 +8,29 @@ pub mod modrinth;
 use std::future::Future;
 use std::pin::Pin;
 
+use reqwest::ClientBuilder;
+
 use crate::modplatform::error::PlatformError;
 use crate::modplatform::types::*;
+
+/// 配置代理到 ClientBuilder
+pub fn configure_proxy(builder: ClientBuilder, proxy_url: Option<&str>) -> ClientBuilder {
+    let Some(proxy) = proxy_url else {
+        return builder;
+    };
+
+    let builder = if let Ok(p) = reqwest::Proxy::http(proxy) {
+        builder.proxy(p)
+    } else {
+        builder
+    };
+
+    if let Ok(p) = reqwest::Proxy::https(proxy) {
+        builder.proxy(p)
+    } else {
+        builder
+    }
+}
 
 /// 模组平台 Provider 抽象 Trait
 pub trait ModPlatformProvider: Send + Sync {

@@ -148,7 +148,19 @@ public class HttpProtocol implements UpdatingServer {
     @Override
     public void downloadDirect(String url, Path writeTo, OnDownload callback, OnFail fallback) throws McpatchBusinessException {
         Request req = buildRequest(url, Range.Empty(), null);
-        downloadWithResponse(req, writeTo, callback, fallback);
+
+        try (Response rsp = client.newCall(req).execute()) {
+            int code = rsp.code();
+
+            if (code < 200 || code >= 300) {
+                String body = rsp.peekBody(300).string();
+                throw new McpatchBusinessException(String.format("服务器(%d)返回了 %d: %s\n%s", number, code, url, body));
+            }
+
+            downloadWithResponse(rsp, writeTo, callback, fallback);
+        } catch (IOException e) {
+            throw new McpatchBusinessException(e);
+        }
     }
 
     @Override

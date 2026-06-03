@@ -28,7 +28,7 @@ use crate::web::api::fs::extract_file::api_extract_file;
 use crate::web::api::fs::r#move::api_move;
 use crate::web::api::fs::sign_file::api_sign_file;
 use crate::web::api::misc::version_list::api_version_list;
-use crate::web::api::modplatform::{api_modplatform_search, api_modplatform_status, api_modplatform_update_config};
+use crate::web::api::modplatform::{api_modplatform_install, api_modplatform_search, api_modplatform_status, api_modplatform_update_config, api_modplatform_versions};
 use crate::web::api::public::api_public;
 use crate::web::api::task::check::api_status;
 use crate::web::api::task::combine::api_combine;
@@ -120,7 +120,7 @@ pub async fn serve_web(apppath: AppPath, config: Config) {
         .allow_credentials(config.web.cors_allow_credentials)
         .allow_headers(parse_allow_headers(&config.web.cors_allow_headers))
         .allow_methods(parse_allow_methods(&config.web.cors_allow_methods))
-        .allow_origin(parse_allow_origin(&config.web.cors_allow_methods))
+        .allow_origin(configured_allow_origin_values(&config.web))
         .allow_private_network(config.web.cors_allow_private_network)
         .expose_headers(parse_expose_headers(&config.web.cors_expose_headers));
 
@@ -156,6 +156,8 @@ pub async fn serve_web(apppath: AppPath, config: Config) {
         .route("/api/misc/version-list", post(api_version_list))
         .route("/api/modplatform/status", post(api_modplatform_status))
         .route("/api/modplatform/search", post(api_modplatform_search))
+        .route("/api/modplatform/versions", post(api_modplatform_versions))
+        .route("/api/modplatform/install", post(api_modplatform_install))
         .route("/api/modplatform/update-config", post(api_modplatform_update_config))
         .route_layer(AuthLayer::new(webstate.clone()))
 
@@ -218,5 +220,29 @@ fn parse_expose_headers(date: &Vec<String>) -> ExposeHeaders {
     match date.iter().any(|e| e == "*") {
         true => ExposeHeaders::any(),
         false => ExposeHeaders::list(date.iter().map(|e| HeaderName::from_str(&e).unwrap()).collect::<Vec<_>>()),
+    }
+}
+
+fn configured_allow_origin_values(web: &crate::config::web_config::WebConfig) -> AllowOrigin {
+    parse_allow_origin(&web.cors_allow_origin)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::config::web_config::WebConfig;
+
+    use super::configured_allow_origin_values;
+
+    #[test]
+    fn cors_origin_reads_origin_config() {
+        let mut web = WebConfig::default();
+        web.cors_allow_methods = vec!["POST".to_owned()];
+        web.cors_allow_origin = vec!["https://admin.example.com".to_owned()];
+
+        let configured = configured_allow_origin_values(&web);
+        let debug_text = format!("{configured:?}");
+
+        assert!(debug_text.contains("admin.example.com"));
+        assert!(!debug_text.contains("POST"));
     }
 }

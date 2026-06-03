@@ -214,7 +214,7 @@ impl<N: AbstractFile, O: AbstractFile> Diff<N, O> {
         let ta = a.modified().duration_since(UNIX_EPOCH).unwrap().as_secs();
         let tb = b.modified().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
-        ta == tb || a.hash().deref() == b.hash().deref()
+        ta == tb || a.matches_hash(b.hash().deref()) || b.matches_hash(a.hash().deref())
     }
 
     /// 检查一个文件要不要被忽略
@@ -234,7 +234,7 @@ impl<N: AbstractFile, O: AbstractFile> Diff<N, O> {
                     continue;
                 }
 
-                if n.hash().deref() == o.hash().deref() {
+                if n.matches_hash(o.hash().deref()) || o.matches_hash(n.hash().deref()) {
                     self.renamed_files.push((o, n));
                 }
             }

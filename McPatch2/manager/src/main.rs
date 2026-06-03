@@ -12,6 +12,7 @@ use crate::builtin_server::start_builtin_server;
 use crate::config::Config;
 use crate::task::check::task_check;
 use crate::task::combine::task_combine;
+use crate::task::keygen::task_gen_index_keypair;
 use crate::task::pack::task_pack;
 use crate::task::revert::task_revert;
 use crate::task::test::task_test;
@@ -48,6 +49,9 @@ enum Commands {
 
     /// 合并更新包
     Combine,
+
+    /// 生成更新索引签名密钥对
+    GenIndexKeypair,
     
     /// 测试所有更新包是否能正常读取
     Test,
@@ -88,13 +92,13 @@ fn main() {
         let config = Config::load(&apppath).await;
         let console = Console::new_cli();
 
-        match std::env::args().len() > 1 {
+        let _exit_code = match std::env::args().len() > 1 {
             // 如果带了启动参数，就进入命令行模式
             true => commandline_mode(apppath, config, console).await,
             
             // 如果不带启动参数，就进入交互式模式
             false => interactive_mode(apppath, config, console).await,
-        }
+        };
     });
 }
 
@@ -136,6 +140,7 @@ async fn handle_command(apppath: &AppPath, config: &Config, console: &Console, c
         Commands::Pack { version_label } => task_pack(version_label, "".to_owned(), apppath, config, console),
         Commands::Check => task_check(apppath, config, console),
         Commands::Combine => task_combine(apppath, config, console),
+        Commands::GenIndexKeypair => task_gen_index_keypair(console),
         Commands::Test => task_test(apppath, config, console),
         Commands::Revert => task_revert(apppath, config, console),
         Commands::Serve => {

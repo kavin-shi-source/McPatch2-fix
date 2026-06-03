@@ -19,7 +19,7 @@ struct FingerprintResponse {
 #[derive(Deserialize)]
 struct FingerprintData {
     exact_matches: Vec<ExactMatch>,
-    partial_matches: Vec<PartialMatch>,
+    _partial_matches: Vec<PartialMatch>,
 }
 
 #[derive(Deserialize)]
@@ -39,8 +39,8 @@ struct CFFingerprintFile {
 
 #[derive(Deserialize)]
 struct PartialMatch {
-    id: i64,
-    file: CFFingerprintFile,
+    _id: i64,
+    _file: CFFingerprintFile,
 }
 
 impl CurseForgeClient {

@@ -1,7 +1,7 @@
-import {Outlet, useLocation, useNavigate} from "react-router-dom";
+import {Outlet, useLocation, useNavigate, useOutletContext} from "react-router-dom";
 import {AppWindow, CircleHelp, CircleUserRound, Folder, LogOut, ScrollText, Settings, Cloud} from "lucide-react";
 import {userCheckTokenRequest, userSignOutRequest} from "@/api/user.js";
-import {message} from "antd";
+import {ConfigProvider, message, theme} from "antd";
 import {useDispatch, useSelector} from "react-redux";
 import {clearToken} from "@/store/modules/userStore.js";
 import {useEffect} from "react";
@@ -44,6 +44,7 @@ const navsFooter = [
 
 const Index = () => {
 
+  const {darkMode = false} = useOutletContext() || {};
   const navigate = useNavigate();
   const location = useLocation();
   const user = useSelector((state) => state.user);
@@ -78,37 +79,22 @@ const Index = () => {
 
   return (
     <>
-      {contextHolder}
-      <div className="flex">
-        <div
-          className="fixed top-0 left-0 w-full h-full border-r dark:border-gray-900 bg-white dark:bg-gray-950 space-y-8 sm:w-60">
-          <div className="flex flex-col h-full">
-            <div className='h-20 flex justify-center items-center px-8'>
-              <div className='flex-none cursor-pointer' onClick={() => navigate('/')}>
-                <div className="text-[20px] font-bold text-indigo-600 text-left">McPatch(汉堡农场定制)</div>
+      <ConfigProvider
+        theme={{token: {colorPrimary: '#4f46e5'}, algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm}}>
+        {contextHolder}
+        <div className="flex">
+          <div
+            className="fixed top-0 left-0 w-full h-full border-r dark:border-gray-900 bg-white dark:bg-gray-950 space-y-8 sm:w-60">
+            <div className="flex flex-col h-full">
+              <div className='h-20 flex justify-center items-center px-8'>
+                <div className='flex-none cursor-pointer' onClick={() => navigate('/')}>
+                  <div className="text-[20px] font-bold text-indigo-600 text-left">McPatch(汉堡农场定制)</div>
+                </div>
               </div>
-            </div>
-            <div className="flex-1 flex flex-col h-full overflow-auto">
-              <ul className="px-4 text-sm font-medium flex-1">
-                {
-                  navs.map((item, idx) => {
-                    const isActive = location.pathname === item.nav
-                    return (
-                      <li key={idx}>
-                        <div onClick={() => navigate(item.nav)}
-                             className={`flex items-center gap-x-2 text-gray-600 dark:text-white p-2 rounded-lg cursor-pointer ${isActive ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-900 active:bg-gray-100 dark:active:bg-gray-800 duration-150'}`}>
-                          <div className="text-gray-500 dark:text-white">{item.icon}</div>
-                          {item.name}
-                        </div>
-                      </li>
-                    )
-                  })
-                }
-              </ul>
-              <div>
-                <ul className="px-4 pb-4 text-sm font-medium">
+              <div className="flex-1 flex flex-col h-full overflow-auto">
+                <ul className="px-4 text-sm font-medium flex-1">
                   {
-                    navsFooter.map((item, idx) => {
+                    navs.map((item, idx) => {
                       const isActive = location.pathname === item.nav
                       return (
                         <li key={idx}>
@@ -121,33 +107,51 @@ const Index = () => {
                       )
                     })
                   }
-                  <li>
-                    <div
-                      onClick={() => signOut()}
-                      className={`flex items-center gap-x-2 text-gray-600 dark:text-white p-2 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900 active:bg-gray-100 dark:active:bg-gray-800 duration-150}`}>
-                      <div className="text-gray-500 dark:text-white"><LogOut size={16} strokeWidth={1.5}/></div>
-                      退出登录
-                    </div>
-                  </li>
                 </ul>
-                <div className="py-4 px-4 border-t dark:border-gray-900">
-                  <div className="flex items-center gap-x-4">
-                    {/*<img src="" className="w-12 h-12 rounded-full"/>*/}
-                    <CircleUserRound className="dark:text-white" size={40} strokeWidth={1.0}/>
-                    <div>
-                      <span className="block text-gray-700 dark:text-white text-sm font-semibold">{user.username || "ADMIN"}</span>
+                <div>
+                  <ul className="px-4 pb-4 text-sm font-medium">
+                    {
+                      navsFooter.map((item, idx) => {
+                        const isActive = location.pathname === item.nav
+                        return (
+                          <li key={idx}>
+                            <div onClick={() => navigate(item.nav)}
+                                 className={`flex items-center gap-x-2 text-gray-600 dark:text-white p-2 rounded-lg cursor-pointer ${isActive ? 'bg-gray-100 dark:bg-gray-800' : 'hover:bg-gray-50 dark:hover:bg-gray-900 active:bg-gray-100 dark:active:bg-gray-800 duration-150'}`}>
+                              <div className="text-gray-500 dark:text-white">{item.icon}</div>
+                              {item.name}
+                            </div>
+                          </li>
+                        )
+                      })
+                    }
+                    <li>
+                      <div
+                        onClick={() => signOut()}
+                        className={`flex items-center gap-x-2 text-gray-600 dark:text-white p-2 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-900 active:bg-gray-100 dark:active:bg-gray-800 duration-150}`}>
+                        <div className="text-gray-500 dark:text-white"><LogOut size={16} strokeWidth={1.5}/></div>
+                        退出登录
+                      </div>
+                    </li>
+                  </ul>
+                  <div className="py-4 px-4 border-t dark:border-gray-900">
+                    <div className="flex items-center gap-x-4">
+                      {/*<img src="" className="w-12 h-12 rounded-full"/>*/}
+                      <CircleUserRound className="dark:text-white" size={40} strokeWidth={1.0}/>
+                      <div>
+                        <span className="block text-gray-700 dark:text-white text-sm font-semibold">{user.username || "ADMIN"}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="ml-60 flex-grow">
-          <Outlet/>
+          <div className="ml-60 flex-grow">
+            <Outlet/>
+          </div>
         </div>
-      </div>
+      </ConfigProvider>
     </>
   );
 };

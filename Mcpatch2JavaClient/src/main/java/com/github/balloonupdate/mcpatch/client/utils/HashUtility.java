@@ -2,34 +2,121 @@ package com.github.balloonupdate.mcpatch.client.utils;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * 文件 hash 计算类，所有计算文件哈希值时都会调用此函数，可以在此函数中替换任意哈希算法
  */
 public class HashUtility {
-    static Crc64_XZ crc64 = new Crc64_XZ();
-    static Crc16_IBM_SDLC crc16 = new Crc16_IBM_SDLC();
+    private static final Pattern LEGACY_HASH_PATTERN = Pattern.compile("^[0-9a-fA-F]{16}_[0-9a-fA-F]{4}$");
 
     /**
-     * 计算一个文件的校验值（此函数不是线程安全的，多线程环境下需要注意）
+     * 计算一个文件的校验值，默认使用 SHA-256
      */
     public static String calculateHash(Path file) throws IOException {
+        try (InputStream stream = new BufferedInputStream(Files.newInputStream(file))) {
+            return calculateSha256(stream);
+        }
+    }
+
+    /**
+     * 计算一段字节流的校验值，默认使用 SHA-256
+     */
+    public static String calculateHash(byte[] data) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return toHex(digest.digest(data));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("当前环境不支持 SHA-256", e);
+        }
+    }
+
+    public static boolean matchesHash(Path file, String expectedHash) throws IOException {
+        return calculateHashForExpected(file, expectedHash).equals(normalizeHash(expectedHash));
+    }
+
+    public static boolean matchesHash(byte[] data, String expectedHash) {
+        return calculateHashForExpected(data, expectedHash).equals(normalizeHash(expectedHash));
+    }
+
+    public static String calculateHashForExpected(Path file, String expectedHash) throws IOException {
+        if (isLegacyHash(expectedHash)) {
+            return calculateLegacyHash(file);
+        }
+        return calculateHash(file);
+    }
+
+    public static String calculateHashForExpected(byte[] data, String expectedHash) {
+        if (isLegacyHash(expectedHash)) {
+            return calculateLegacyHash(data);
+        }
+        return calculateHash(data);
+    }
+
+    static boolean isLegacyHash(String hash) {
+        return hash != null && LEGACY_HASH_PATTERN.matcher(hash).matches();
+    }
+
+    static String calculateLegacyHash(Path file) throws IOException {
+        Crc64_XZ crc64 = new Crc64_XZ();
+        Crc16_IBM_SDLC crc16 = new Crc16_IBM_SDLC();
         crc64.reset();
         crc16.reset();
-
         crc64.update(file);
         crc16.update(file);
+        return formatLegacyHash(crc64.getValue(), crc16.getValue());
+    }
 
-        long a = crc64.getValue();
-        long b = crc16.getValue();
+    static String calculateLegacyHash(byte[] data) {
+        Crc64_XZ crc64 = new Crc64_XZ();
+        Crc16_IBM_SDLC crc16 = new Crc16_IBM_SDLC();
+        crc64.reset();
+        crc16.reset();
+        crc64.update(data, 0, data.length);
+        crc16.update(data, 0, data.length);
+        return formatLegacyHash(crc64.getValue(), crc16.getValue());
+    }
 
-        String crc64 = String.format("%016x", a);
-        String crc16 = String.format("%04x", b);
+    private static String calculateSha256(InputStream stream) throws IOException {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] buffer = new byte[128 * 1024];
+            int read;
+
+            while ((read = stream.read(buffer)) != -1) {
+                digest.update(buffer, 0, read);
+            }
+
+            return toHex(digest.digest());
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("当前环境不支持 SHA-256", e);
+        }
+    }
+
+    private static String toHex(byte[] hash) {
+        StringBuilder sb = new StringBuilder(hash.length * 2);
+        for (byte b : hash) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+
+    private static String formatLegacyHash(long crc64Value, long crc16Value) {
+        String crc64 = String.format("%016x", crc64Value);
+        String crc16 = String.format("%04x", crc16Value);
 
         return crc64 + "_" + crc16;
+    }
+
+    private static String normalizeHash(String hash) {
+        return hash.toLowerCase(Locale.ROOT);
     }
 }
 

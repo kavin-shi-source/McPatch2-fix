@@ -34,7 +34,11 @@ const Index = ({path, getFileList}) => {
       
       try {
         const res = await fsUploadRequest(key, file, onProgress);
-        onSuccess(res);
+        if (res.code === 1) {
+          onSuccess(res);
+        } else {
+          onError(new Error(res.msg || '上传失败'));
+        }
       } catch (error) {
         onError(error);
       }
@@ -61,7 +65,11 @@ const Index = ({path, getFileList}) => {
 
       try {
         const res = await fsUploadRequest(key, file, onProgress);
-        onSuccess(res);
+        if (res.code === 1) {
+          onSuccess(res);
+        } else {
+          onError(new Error(res.msg || '上传失败'));
+        }
       } catch (error) {
         onError(error);
       }

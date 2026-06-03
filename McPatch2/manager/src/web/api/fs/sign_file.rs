@@ -43,7 +43,10 @@ pub async fn api_sign_file(State(state): State<WebState>, Json(payload): Json<Re
     let username = state.auth.username().await;
     let password = state.auth.password().await;
 
-    let relative_path = path.strip_prefix(&state.apppath.working_dir).unwrap().to_str().unwrap().to_owned();
+    let relative_path = match relative_path_string(&state.apppath.working_dir, &path) {
+        Some(path) => path,
+        None => return PublicResponseBody::<ResponseData>::err("file path contains invalid unicode."),
+    };
     let expire = SystemTime::now() + Duration::from_secs(2 * 60 * 60);
     let unix_ts = expire.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
 
@@ -59,4 +62,37 @@ fn hash(text: &impl AsRef<str>) -> String {
     let hash = Sha256::digest(text.as_ref());
     
     base16ct::lower::encode_string(&hash)
+}
+
+fn relative_path_string(base: &std::path::Path, path: &std::path::Path) -> Option<String> {
+    path.strip_prefix(base).ok()?.to_str().map(str::to_owned)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsString;
+    use std::path::{Path, PathBuf};
+
+    use super::relative_path_string;
+
+    #[cfg(windows)]
+    fn invalid_path() -> PathBuf {
+        use std::os::windows::ffi::OsStringExt;
+        let os = OsString::from_wide(&[0x0061, 0xD800, 0x0062]);
+        PathBuf::from(os)
+    }
+
+    #[cfg(unix)]
+    fn invalid_path() -> PathBuf {
+        use std::os::unix::ffi::OsStringExt;
+        PathBuf::from(OsString::from_vec(vec![0x61, 0xFF, 0x62]))
+    }
+
+    #[test]
+    fn invalid_unicode_relative_path_returns_none() {
+        let base = Path::new("root");
+        let path = base.join(invalid_path());
+
+        assert!(relative_path_string(base, &path).is_none());
+    }
 }

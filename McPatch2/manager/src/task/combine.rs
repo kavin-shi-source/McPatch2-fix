@@ -11,6 +11,7 @@ use crate::core::data::version_meta::FileChange;
 use crate::core::data::version_meta_group::VersionMetaGroup;
 use crate::core::tar_reader::TarReader;
 use crate::core::tar_writer::TarWriter;
+use crate::core::update_signature::sign_version_index;
 use crate::diff::history_file::HistoryFile;
 use crate::web::log::Console;
 
@@ -34,7 +35,7 @@ struct Location {
     pub len: u64,
 }
 
-pub fn task_combine(apppath: &AppPath, _config: &Config, console: &Console) -> u8 {
+pub fn task_combine(apppath: &AppPath, config: &Config, console: &Console) -> u8 {
     let index_file = IndexFile::load_from_file(&apppath.index_file);
 
     // 执行合并前需要先测试一遍
@@ -128,13 +129,22 @@ pub fn task_combine(apppath: &AppPath, _config: &Config, console: &Console) -> u
     let new_index_filepath = temp_public.join("index.json");
     let mut new_index = IndexFile::new();
     for (index, _meta) in index_file.read_all_metas(&apppath.public_dir) {
-        new_index.add(VersionIndex {
+        let mut version_index = VersionIndex {
             label: index.label.to_owned(),
             filename: COMBINED_FILENAME.to_owned(),
             offset: meta_loc.offset,
             len: meta_loc.length,
-            hash: "no hash".to_owned(),
-        })
+            hash: meta_loc.hash.to_owned(),
+            signature: String::new(),
+        };
+        version_index.signature = match sign_version_index(&version_index, &config.core.index_signature_private_key) {
+            Ok(signature) => signature,
+            Err(err) => {
+                console.log_error(format!("更新索引签名失败: {}", err));
+                return 1;
+            }
+        };
+        new_index.add(version_index)
     }
     new_index.save(&new_index_filepath);
 

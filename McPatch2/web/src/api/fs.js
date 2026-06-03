@@ -1,6 +1,4 @@
 import instance from "@/utils/request.js";
-import axios from "axios";
-import store from "@/store/index.js";
 
 export const fsDiskInfoRequest = () => instance.post('/fs/disk-info', {})
 
@@ -12,16 +10,37 @@ export const fsDeleteRequest = (path = '') => instance.post('/fs/delete', {path}
 
 export const fsSignFileRequest = (path = '') => instance.post('/fs/sign-file', {path})
 
-export const fsUploadRequest = (path = '', file, onProgress) => {
-  return axios.post(`${import.meta.env.VITE_API_URL}/fs/upload`, file, {
-    headers: {
-      'Token': store.getState().user.token,
-      'Content-Type': 'application/octet-stream',
-      'Path': encodeURIComponent(path)
-    },
-    onUploadProgress: (event) => {
-      let percent = Math.floor((event.loaded / event.total) * 100);
-      onProgress({percent});
-    },
+const readFileAsBase64 = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      if (typeof reader.result !== 'string') {
+        reject(new Error('文件编码失败'));
+        return;
+      }
+
+      const [, base64 = ''] = reader.result.split(',');
+      resolve(base64);
+    };
+
+    reader.onerror = () => {
+      reject(reader.error || new Error('文件读取失败'));
+    };
+
+    reader.readAsDataURL(file);
   });
 }
+
+export const fsUploadRequest = async (path = '', file, onProgress = () => {}) => {
+  onProgress({percent: 10});
+  const content = await readFileAsBase64(file);
+  onProgress({percent: 80});
+
+  const response = await instance.post('/fs/upload', {path, content});
+  onProgress({percent: 100});
+
+  return response;
+}
+
+export const fsDownloadRequest = (path = '') => instance.post('/fs/download', {path})

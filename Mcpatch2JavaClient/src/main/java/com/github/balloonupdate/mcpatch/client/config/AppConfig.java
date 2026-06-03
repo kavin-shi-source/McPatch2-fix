@@ -116,6 +116,11 @@ public class AppConfig {
      */
     public boolean testMode;
 
+    /**
+     * 更新索引验签公钥，使用 X.509 DER 的 base64 文本；为空时使用客户端内置公钥
+     */
+    public String indexSignaturePublicKey;
+
 
     public AppConfig(Map<String, Object> map) {
         List<String> urls = getList(map, "urls", null, new ArrayList<>());
@@ -135,6 +140,7 @@ public class AppConfig {
         boolean ignoreSSLCertificate = getBoolean(map, "ignore-ssl-cert", "http-ignore-certificate", false);
         boolean ignoreHttpContentLength = getBoolean(map, "ignore-http-content-length", "", false);
         boolean testMode = getBoolean(map, "test-mode", null, false);
+        String indexSignaturePublicKey = getString(map, "index-signature-public-key", null, "");
 
 //        if (urls.contains("webda"))
 //
@@ -156,6 +162,7 @@ public class AppConfig {
         this.ignoreSSLCertificate = ignoreSSLCertificate;
         this.ignoreHttpContentLength = ignoreHttpContentLength;
         this.testMode = testMode;
+        this.indexSignaturePublicKey = indexSignaturePublicKey;
     }
 
     @SuppressWarnings("unchecked")

@@ -1,4 +1,5 @@
 use std::ops::Deref;
+use std::future::Future;
 use std::rc::Weak;
 
 use crate::app_path::AppPath;
@@ -9,12 +10,23 @@ use crate::core::data::index_file::VersionIndex;
 use crate::core::data::version_meta::VersionMeta;
 use crate::core::data::version_meta_group::VersionMetaGroup;
 use crate::core::tar_writer::TarWriter;
+use crate::core::update_signature::sign_version_index;
 use crate::diff::abstract_file::AbstractFile;
 use crate::diff::diff::Diff;
 use crate::diff::disk_file::DiskFile;
 use crate::diff::history_file::HistoryFile;
 use crate::web::log::Console;
 
+fn block_on_future<F>(future: F) -> F::Output
+where
+    F: Future,
+{
+    if let Ok(handle) = tokio::runtime::Handle::try_current() {
+        tokio::task::block_in_place(|| handle.block_on(future))
+    } else {
+        tokio::runtime::Runtime::new().unwrap().block_on(future)
+    }
+}
 
 pub fn task_pack(version_label: String, change_logs: String, apppath: &AppPath, config: &Config, console: &Console) -> u8 {
     // 读取更新日志
@@ -106,13 +118,22 @@ pub fn task_pack(version_label: String, change_logs: String, apppath: &AppPath, 
     let meta_info = writer.finish(meta_group);
 
     // 3. 更新索引文件
-    index_file.add(VersionIndex {
+    let mut version_index = VersionIndex {
         label: version_label.to_owned(),
         filename: version_filename,
         offset: meta_info.offset,
         len: meta_info.length,
-        hash: "no hash".to_owned(),
-    });
+        hash: meta_info.hash,
+        signature: String::new(),
+    };
+    version_index.signature = match sign_version_index(&version_index, &config.core.index_signature_private_key) {
+        Ok(signature) => signature,
+        Err(err) => {
+            console.log_error(format!("更新索引签名失败: {}", err));
+            return 1;
+        }
+    };
+    index_file.add(version_index);
 
     // 进行解压测试
     console.log_debug("正在测试");
@@ -126,7 +147,6 @@ pub fn task_pack(version_label: String, change_logs: String, apppath: &AppPath, 
     // 4. 模组识别（ModRouter）
     if let Some(router) = crate::task::mod_router::ModRouter::new(config.core.mod_platform.clone()) {
         console.log_info("模组平台识别已启用");
-        let rt = tokio::runtime::Runtime::new().unwrap();
         for f in &vec {
             let path = f.path().to_owned();
             let ext = std::path::Path::new(&path).extension()
@@ -134,7 +154,7 @@ pub fn task_pack(version_label: String, change_logs: String, apppath: &AppPath, 
                 .unwrap_or("")
                 .to_lowercase();
             if ext == "jar" || ext == "zip" {
-                match rt.block_on(router.resolve_file_source(f)) {
+                match block_on_future(router.resolve_file_source(f)) {
                     Ok(Some(source)) => {
                         console.log_info(format!("  识别为: {} (来自 {})", source.mod_name, source.platform));
                     }
@@ -160,4 +180,21 @@ pub fn task_pack(version_label: String, change_logs: String, apppath: &AppPath, 
     // generate_upload_script(context, ctx, &version_label);
 
     0
+}
+
+#[cfg(test)]
+mod tests {
+    use super::block_on_future;
+
+    #[test]
+    fn block_on_future_works_outside_runtime() {
+        let result = block_on_future(async { 7 });
+        assert_eq!(result, 7);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn block_on_future_works_inside_runtime() {
+        let result = block_on_future(async { 11 });
+        assert_eq!(result, 11);
+    }
 }

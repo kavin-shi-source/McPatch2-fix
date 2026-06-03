@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  * 文件路径相关实用类
@@ -19,6 +20,36 @@ public class PathUtility {
             filename = filename.substring(url.lastIndexOf("/") + 1);
 
         return filename;
+    }
+
+    /**
+     * 将服务端提供的相对路径安全地解析到 baseDir 之下。
+     */
+    public static Path resolveUnderBase(Path baseDir, String rawPath) throws IOException {
+        if (rawPath == null || rawPath.isEmpty()) {
+            throw new IOException("path is empty");
+        }
+
+        Path input = Paths.get(rawPath);
+        if (input.isAbsolute()) {
+            throw new IOException("absolute path is not allowed: " + rawPath);
+        }
+
+        for (Path part : input) {
+            String name = part.toString();
+            if ("..".equals(name)) {
+                throw new IOException("path traversal detected: " + rawPath);
+            }
+        }
+
+        Path normalizedBase = baseDir.toAbsolutePath().normalize();
+        Path resolved = normalizedBase.resolve(input).normalize();
+
+        if (!resolved.startsWith(normalizedBase)) {
+            throw new IOException("path escapes base directory: " + rawPath);
+        }
+
+        return resolved;
     }
 
     /**

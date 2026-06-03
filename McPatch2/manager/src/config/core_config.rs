@@ -10,6 +10,9 @@ pub struct CoreConfig {
     /// 编写规则时可以使用check命令快速调试是否生效
     pub exclude_rules: Vec<String>,
 
+    /// 更新索引签名私钥，使用 PKCS#8 DER 的 base64 文本
+    pub index_signature_private_key: String,
+
     /// 是否工作在webui模式下，还是在交互式命令行模式下
     pub webui_mode: bool,
 

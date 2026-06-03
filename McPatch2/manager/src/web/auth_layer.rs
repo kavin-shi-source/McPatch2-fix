@@ -3,6 +3,7 @@ use std::pin::Pin;
 use std::task::Poll;
 
 use axum::body::Body;
+use axum::http::HeaderMap;
 use axum::http::Request;
 use axum::http::Response;
 use tower_layer::Layer;
@@ -61,10 +62,7 @@ impl<S, Req> Service<Request<Req>> for AuthService<S> where
         let webstate = self.webstate.clone();
 
         // 获取token
-        let token_header = match req.headers().get("token") {
-            Some(ok) => ok.to_str().unwrap().to_owned(),
-            None => "".to_owned(),
-        };
+        let token_header = token_from_headers(req.headers());
 
         let fut = self.service.call(req);
         
@@ -77,5 +75,28 @@ impl<S, Req> Service<Request<Req>> for AuthService<S> where
             // 请求继续往后走
             fut.await
         })
+    }
+}
+
+fn token_from_headers(headers: &HeaderMap) -> String {
+    headers
+        .get("token")
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default()
+        .to_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::{HeaderMap, HeaderValue};
+
+    use super::token_from_headers;
+
+    #[test]
+    fn invalid_token_header_falls_back_to_empty_string() {
+        let mut headers = HeaderMap::new();
+        headers.insert("token", HeaderValue::from_bytes(&[0xFF, 0xFE]).unwrap());
+
+        assert_eq!(token_from_headers(&headers), "");
     }
 }

@@ -1,6 +1,5 @@
 import React, {useEffect, useState} from 'react';
 import {Outlet} from "react-router-dom";
-import {ConfigProvider, FloatButton, theme} from "antd";
 import {MoonStar, Sun} from "lucide-react";
 
 const App = () => {
@@ -18,16 +17,17 @@ const App = () => {
 
   return (
     <>
-      <ConfigProvider
-        theme={{token: {colorPrimary: '#4f46e5'}, algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm}}>
-        <div className="dark:bg-gray-950">
-          <Outlet/>
-          <FloatButton
-            icon={darkMode ? <Sun className="w-full h-full"/> : <MoonStar className="w-full h-full"/>}
-            tooltip={<div>深色模式</div>}
-            onClick={() => setDarkMode(!darkMode)}/>
-        </div>
-      </ConfigProvider>
+      <div className="dark:bg-gray-950">
+        <Outlet context={{darkMode}}/>
+        <button
+          type="button"
+          aria-label="切换深色模式"
+          title="深色模式"
+          onClick={() => setDarkMode(!darkMode)}
+          className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg transition hover:bg-indigo-500">
+          {darkMode ? <Sun className="h-5 w-5"/> : <MoonStar className="h-5 w-5"/>}
+        </button>
+      </div>
     </>
   );
 };

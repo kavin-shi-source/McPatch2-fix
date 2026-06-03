@@ -14,7 +14,6 @@ use crate::modplatform::types::{ModSource, PlatformId};
 pub struct ModRouter {
     cf_client: Option<CurseForgeClient>,
     mr_client: Option<ModrinthClient>,
-    config: ModPlatformConfig,
 }
 
 impl ModRouter {
@@ -70,7 +69,7 @@ impl ModRouter {
             None
         };
 
-        Some(Self { cf_client, mr_client, config })
+        Some(Self { cf_client, mr_client })
     }
 
     /// 识别文件来源
